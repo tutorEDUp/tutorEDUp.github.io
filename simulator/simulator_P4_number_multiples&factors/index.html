@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>因數與倍數概念模擬器 | Factors & Multiples Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 使用 Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Nunito:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Nunito', 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+        }
+
+        /* 自定義捲軸 */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        /* 數字高亮動畫 */
+        .highlight-pop {
+            animation: pop 0.3s ease-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .number-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 9999px;
+            margin: 0.25rem;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .common-badge {
+            background-color: #fca5a5; /* Red-300 */
+            color: #7f1d1d; /* Red-900 */
+            border: 2px solid #ef4444;
+            transform: scale(1.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .normal-badge {
+            background-color: #e2e8f0; /* Slate-200 */
+            color: #1e293b; /* Slate-800 */
+        }
+        
+        .result-badge {
+            background-color: #86efac; /* Green-300 */
+            color: #064e3b; /* Green-900 */
+            border: 2px solid #22c55e;
+            font-size: 1.25rem;
+            width: 3.5rem;
+            height: 3.5rem;
+        }
+
+        /* Tab active state */
+        .tab-active {
+            border-bottom: 3px solid #3b82f6;
+            color: #2563eb;
+            font-weight: 700;
+        }
+        .tab-inactive {
+            color: #64748b;
+            border-bottom: 3px solid transparent;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <!-- Logo Area -->
+                <div class="w-10 h-10 relative flex-shrink-0">
+                    <img src="logo.png" alt="Logo" class="w-full h-full object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+                    <div class="w-full h-full bg-blue-100 rounded-lg hidden items-center justify-center text-blue-600">
+                        <i data-lucide="calculator"></i>
+                    </div>
+                </div>
+                <h1 class="text-lg md:text-xl font-bold text-gray-800 leading-tight">
+                    <span id="app-title-zh" class="block">數理模擬器</span>
+                    <span id="app-title-en" class="hidden text-sm font-normal text-gray-500">Math Simulator</span>
+                </h1>
+            </div>
+            
+            <button onclick="toggleLanguage()" class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full border border-blue-200 text-sm font-medium hover:bg-blue-100 transition">
+                <i data-lucide="languages" class="w-4 h-4"></i>
+                <span id="lang-btn-text">English</span>
+            </button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="max-w-4xl mx-auto px-2 overflow-x-auto custom-scrollbar flex whitespace-nowrap bg-white">
+            <button onclick="switchTab('intro-multiples')" class="tab-btn tab-active flex-1 py-3 px-4 text-center focus:outline-none transition" data-target="intro-multiples">
+                <span class="zh">1. 公倍數介紹</span><span class="en hidden">Intro Multiples</span>
+            </button>
+            <button onclick="switchTab('sim-lcm')" class="tab-btn tab-inactive flex-1 py-3 px-4 text-center focus:outline-none transition" data-target="sim-lcm">
+                <span class="zh">2. 找公倍數 (LCM)</span><span class="en hidden">Find LCM</span>
+            </button>
+            <button onclick="switchTab('intro-factors')" class="tab-btn tab-inactive flex-1 py-3 px-4 text-center focus:outline-none transition" data-target="intro-factors">
+                <span class="zh">3. 公因數介紹</span><span class="en hidden">Intro Factors</span>
+            </button>
+            <button onclick="switchTab('sim-hcf')" class="tab-btn tab-inactive flex-1 py-3 px-4 text-center focus:outline-none transition" data-target="sim-hcf">
+                <span class="zh">4. 找公因數 (HCF)</span><span class="en hidden">Find HCF</span>
+            </button>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-4xl mx-auto w-full p-4 space-y-6">
+
+        <!-- Section 1: Introduction to Multiples -->
+        <section id="intro-multiples" class="content-section fade-in">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-blue-100">
+                <h2 class="text-2xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+                    <i data-lucide="copy" class="w-6 h-6"></i>
+                    <span class="zh">認識公倍數</span><span class="en hidden">Common Multiples</span>
+                </h2>
+                
+                <div class="space-y-4 text-gray-700 leading-relaxed">
+                    <div class="bg-blue-50 p-4 rounded-xl">
+                        <h3 class="font-bold text-blue-700 mb-2">
+                            <span class="zh">什麼是倍數？</span><span class="en hidden">What is a Multiple?</span>
+                        </h3>
+                        <p>
+                            <span class="zh">一個數乘以整數（1, 2, 3...）所得的積，就是該數的倍數。例如：3 的倍數有 3, 6, 9, 12...</span>
+                            <span class="en hidden">The product of a number multiplied by an integer (1, 2, 3...) is a multiple. E.g., Multiples of 3 are 3, 6, 9, 12...</span>
+                        </p>
+                    </div>
+
+                    <div class="bg-indigo-50 p-4 rounded-xl">
+                        <h3 class="font-bold text-indigo-700 mb-2">
+                            <span class="zh">什麼是公倍數？</span><span class="en hidden">What is a Common Multiple?</span>
+                        </h3>
+                        <p>
+                            <span class="zh">兩個或以上整數共同擁有的倍數。其中最小的一個稱為「最小公倍數 (LCM)」。</span>
+                            <span class="en hidden">Multiples that are shared by two or more numbers. The smallest one is called the "Least Common Multiple (LCM)".</span>
+                        </p>
+                    </div>
+
+                    <div class="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center">
+                        <p class="text-sm text-gray-500 mb-2"><span class="zh">範例：4 和 6</span><span class="en hidden">Example: 4 and 6</span></p>
+                        <div class="flex flex-wrap gap-2 justify-center items-center">
+                            <div class="flex flex-wrap gap-1 items-center">
+                                <span class="text-xs text-gray-400">4:</span>
+                                <span class="number-badge normal-badge text-xs">4</span>
+                                <span class="number-badge normal-badge text-xs">8</span>
+                                <span class="number-badge common-badge text-xs">12</span>
+                                <span class="number-badge normal-badge text-xs">16</span>
+                                <span class="number-badge normal-badge text-xs">20</span>
+                                <span class="number-badge common-badge text-xs">24</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 justify-center items-center mt-2">
+                            <div class="flex flex-wrap gap-1 items-center">
+                                <span class="text-xs text-gray-400">6:</span>
+                                <span class="number-badge normal-badge text-xs">6</span>
+                                <span class="number-badge common-badge text-xs">12</span>
+                                <span class="number-badge normal-badge text-xs">18</span>
+                                <span class="number-badge common-badge text-xs">24</span>
+                                <span class="number-badge normal-badge text-xs">30</span>
+                            </div>
+                        </div>
+                        <p class="mt-2 text-sm font-bold text-red-600">
+                            <span class="zh">最小公倍數 (LCM) = 12</span><span class="en hidden">LCM = 12</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: LCM Simulator -->
+        <section id="sim-lcm" class="content-section hidden">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-blue-100">
+                <h2 class="text-2xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+                    <i data-lucide="search" class="w-6 h-6"></i>
+                    <span class="zh">列舉法找公倍數</span><span class="en hidden">Finding Multiples by Listing</span>
+                </h2>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <span class="zh">數字 A</span><span class="en hidden">Number A</span>
+                        </label>
+                        <input type="number" id="lcm-num1" value="4" min="1" max="50" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <span class="zh">數字 B</span><span class="en hidden">Number B</span>
+                        </label>
+                        <input type="number" id="lcm-num2" value="6" min="1" max="50" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-mono">
+                    </div>
+                </div>
+
+                <button onclick="calculateLCM()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md active:scale-95 flex justify-center items-center gap-2">
+                    <i data-lucide="play-circle"></i>
+                    <span class="zh">開始列舉</span><span class="en hidden">List Multiples</span>
+                </button>
+
+                <!-- Results Area -->
+                <div id="lcm-results" class="mt-8 space-y-6 hidden">
+                    <!-- Row 1 -->
+                    <div>
+                        <h4 class="font-bold text-gray-600 mb-2 flex items-center gap-2">
+                            <!-- Updated to show dynamic number -->
+                            <span class="zh"><span class="text-blue-600 font-extrabold text-lg dynamic-n1">數字 A</span> 的倍數 (前10個):</span>
+                            <span class="en hidden">Multiples of <span class="text-blue-600 font-extrabold text-lg dynamic-n1">A</span> (First 10):</span>
+                        </h4>
+                        <div id="lcm-list-1" class="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg min-h-[60px] items-center"></div>
+                    </div>
+
+                    <!-- Row 2 -->
+                    <div>
+                        <h4 class="font-bold text-gray-600 mb-2 flex items-center gap-2">
+                            <!-- Updated to show dynamic number -->
+                            <span class="zh"><span class="text-blue-600 font-extrabold text-lg dynamic-n2">數字 B</span> 的倍數 (前10個):</span>
+                            <span class="en hidden">Multiples of <span class="text-blue-600 font-extrabold text-lg dynamic-n2">B</span> (First 10):</span>
+                        </h4>
+                        <div id="lcm-list-2" class="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg min-h-[60px] items-center"></div>
+                    </div>
+
+                    <!-- Common & LCM -->
+                    <div class="border-t-2 border-gray-100 pt-6 text-center">
+                        <p class="text-gray-600 mb-2">
+                            <span class="zh">公倍數有：</span><span class="en hidden">Common Multiples:</span>
+                            <span id="lcm-common-list" class="font-bold text-gray-800"></span>
+                        </p>
+                        <div class="flex flex-col items-center justify-center gap-2 mt-4 animate-bounce-slow">
+                            <span class="text-sm uppercase tracking-wider text-gray-500 font-bold">LCM</span>
+                            <div id="lcm-final" class="number-badge result-badge shadow-lg">?</div>
+                            <p class="text-sm text-green-700 font-bold mt-1">
+                                <span class="zh">最小公倍數</span><span class="en hidden">Least Common Multiple</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Introduction to Factors -->
+        <section id="intro-factors" class="content-section hidden">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-green-100">
+                <h2 class="text-2xl font-bold text-green-800 mb-4 flex items-center gap-2">
+                    <i data-lucide="puzzle" class="w-6 h-6"></i>
+                    <span class="zh">認識公因數</span><span class="en hidden">Common Factors</span>
+                </h2>
+                
+                <div class="space-y-4 text-gray-700 leading-relaxed">
+                    <div class="bg-green-50 p-4 rounded-xl">
+                        <h3 class="font-bold text-green-700 mb-2">
+                            <span class="zh">什麼是因數？</span><span class="en hidden">What is a Factor?</span>
+                        </h3>
+                        <p>
+                            <span class="zh">如果一個整數能被另一個整數整除，後者就是前者的因數。例如：12 ÷ 3 = 4，所以 3 是 12 的因數。</span>
+                            <span class="en hidden">A number that divides another number completely without a remainder. E.g., 12 ÷ 3 = 4, so 3 is a factor of 12.</span>
+                        </p>
+                    </div>
+
+                    <div class="bg-emerald-50 p-4 rounded-xl">
+                        <h3 class="font-bold text-emerald-700 mb-2">
+                            <span class="zh">什麼是公因數？</span><span class="en hidden">What is a Common Factor?</span>
+                        </h3>
+                        <p>
+                            <span class="zh">兩個或以上整數共同擁有的因數。其中最大的一個稱為「最大公因數 (HCF/GCD)」。</span>
+                            <span class="en hidden">Factors shared by two or more numbers. The largest one is called the "Highest Common Factor (HCF)".</span>
+                        </p>
+                    </div>
+
+                    <div class="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center">
+                        <p class="text-sm text-gray-500 mb-2"><span class="zh">範例：12 和 18</span><span class="en hidden">Example: 12 and 18</span></p>
+                        <div class="w-full">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs text-gray-400 w-6">12:</span>
+                                <div class="flex flex-wrap gap-1">
+                                    <span class="number-badge common-badge text-xs">1</span>
+                                    <span class="number-badge common-badge text-xs">2</span>
+                                    <span class="number-badge common-badge text-xs">3</span>
+                                    <span class="number-badge normal-badge text-xs">4</span>
+                                    <span class="number-badge common-badge text-xs">6</span>
+                                    <span class="number-badge normal-badge text-xs">12</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-400 w-6">18:</span>
+                                <div class="flex flex-wrap gap-1">
+                                    <span class="number-badge common-badge text-xs">1</span>
+                                    <span class="number-badge common-badge text-xs">2</span>
+                                    <span class="number-badge common-badge text-xs">3</span>
+                                    <span class="number-badge common-badge text-xs">6</span>
+                                    <span class="number-badge normal-badge text-xs">9</span>
+                                    <span class="number-badge normal-badge text-xs">18</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-sm font-bold text-red-600">
+                            <span class="zh">最大公因數 (HCF) = 6</span><span class="en hidden">HCF = 6</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: HCF Simulator -->
+        <section id="sim-hcf" class="content-section hidden">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-green-100">
+                <h2 class="text-2xl font-bold text-green-800 mb-4 flex items-center gap-2">
+                    <i data-lucide="list-checks" class="w-6 h-6"></i>
+                    <span class="zh">列舉法找公因數</span><span class="en hidden">Finding Factors by Listing</span>
+                </h2>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <span class="zh">數字 A</span><span class="en hidden">Number A</span>
+                        </label>
+                        <input type="number" id="hcf-num1" value="12" min="1" max="100" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <span class="zh">數字 B</span><span class="en hidden">Number B</span>
+                        </label>
+                        <input type="number" id="hcf-num2" value="18" min="1" max="100" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-mono">
+                    </div>
+                </div>
+
+                <button onclick="calculateHCF()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition shadow-md active:scale-95 flex justify-center items-center gap-2">
+                    <i data-lucide="play-circle"></i>
+                    <span class="zh">找出因數</span><span class="en hidden">List Factors</span>
+                </button>
+
+                <!-- Results Area -->
+                <div id="hcf-results" class="mt-8 space-y-6 hidden">
+                    <!-- Row 1 -->
+                    <div>
+                        <h4 class="font-bold text-gray-600 mb-2 flex items-center gap-2">
+                            <!-- Updated to show dynamic number -->
+                            <span class="zh"><span class="text-green-600 font-extrabold text-lg dynamic-hcf-n1">數字 A</span> 的因數:</span>
+                            <span class="en hidden">Factors of <span class="text-green-600 font-extrabold text-lg dynamic-hcf-n1">A</span>:</span>
+                        </h4>
+                        <div id="hcf-list-1" class="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg min-h-[60px] items-center"></div>
+                    </div>
+
+                    <!-- Row 2 -->
+                    <div>
+                        <h4 class="font-bold text-gray-600 mb-2 flex items-center gap-2">
+                            <!-- Updated to show dynamic number -->
+                            <span class="zh"><span class="text-green-600 font-extrabold text-lg dynamic-hcf-n2">數字 B</span> 的因數:</span>
+                            <span class="en hidden">Factors of <span class="text-green-600 font-extrabold text-lg dynamic-hcf-n2">B</span>:</span>
+                        </h4>
+                        <div id="hcf-list-2" class="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg min-h-[60px] items-center"></div>
+                    </div>
+
+                    <!-- Common & HCF -->
+                    <div class="border-t-2 border-gray-100 pt-6 text-center">
+                        <p class="text-gray-600 mb-2">
+                            <span class="zh">公因數有：</span><span class="en hidden">Common Factors:</span>
+                            <span id="hcf-common-list" class="font-bold text-gray-800"></span>
+                        </p>
+                        <div class="flex flex-col items-center justify-center gap-2 mt-4 animate-bounce-slow">
+                            <span class="text-sm uppercase tracking-wider text-gray-500 font-bold">HCF</span>
+                            <div id="hcf-final" class="number-badge result-badge shadow-lg">?</div>
+                            <p class="text-sm text-green-700 font-bold mt-1">
+                                <span class="zh">最大公因數</span><span class="en hidden">Highest Common Factor</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 py-6 mt-auto">
+        <div class="text-center text-gray-500 text-sm">
+            <p>&copy; 2024 <span class="zh">因數倍數學習工具</span><span class="en hidden">Math Learning Tool</span></p>
+        </div>
+    </footer>
+
+    <script>
+        // --- Initialization ---
+        lucide.createIcons();
+        let currentLang = 'zh';
+
+        // --- Language Logic ---
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateLanguageUI();
+        }
+
+        function updateLanguageUI() {
+            const zhElements = document.querySelectorAll('.zh');
+            const enElements = document.querySelectorAll('.en');
+            const langBtnText = document.getElementById('lang-btn-text');
+            const titleZh = document.getElementById('app-title-zh');
+            const titleEn = document.getElementById('app-title-en');
+
+            if (currentLang === 'zh') {
+                zhElements.forEach(el => { el.classList.remove('hidden'); el.style.display = 'inline'; });
+                enElements.forEach(el => { el.classList.add('hidden'); el.style.display = 'none'; });
+                langBtnText.textContent = 'English';
+                titleZh.style.display = 'block';
+                titleEn.style.display = 'none';
+                
+                // Keep spans in buttons flexible
+                document.querySelectorAll('.tab-btn .zh').forEach(el => el.style.display = 'inline');
+            } else {
+                zhElements.forEach(el => { el.classList.add('hidden'); el.style.display = 'none'; });
+                enElements.forEach(el => { el.classList.remove('hidden'); el.style.display = 'inline'; });
+                langBtnText.textContent = '中文';
+                titleZh.style.display = 'none';
+                titleEn.style.display = 'block';
+
+                document.querySelectorAll('.tab-btn .en').forEach(el => el.style.display = 'inline');
+            }
+        }
+
+        // --- Navigation Logic ---
+        function switchTab(targetId) {
+            // Update Tab Styles
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                if (btn.dataset.target === targetId) {
+                    btn.classList.remove('tab-inactive');
+                    btn.classList.add('tab-active');
+                } else {
+                    btn.classList.add('tab-inactive');
+                    btn.classList.remove('tab-active');
+                }
+            });
+
+            // Update Content Visibility
+            document.querySelectorAll('.content-section').forEach(section => {
+                if (section.id === targetId) {
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            });
+        }
+
+        // --- Helper: Create Number Badge ---
+        function createBadge(number, isCommon) {
+            const span = document.createElement('span');
+            span.textContent = number;
+            span.className = `number-badge highlight-pop ${isCommon ? 'common-badge' : 'normal-badge'}`;
+            return span;
+        }
+
+        // --- Logic: LCM (Least Common Multiple) ---
+        function calculateLCM() {
+            const n1 = parseInt(document.getElementById('lcm-num1').value);
+            const n2 = parseInt(document.getElementById('lcm-num2').value);
+            
+            if (!n1 || !n2 || n1 <= 0 || n2 <= 0) {
+                alert(currentLang === 'zh' ? "請輸入有效的正整數" : "Please enter valid positive integers");
+                return;
+            }
+
+            // Update Labels with Actual Numbers
+            document.querySelectorAll('.dynamic-n1').forEach(el => el.textContent = n1);
+            document.querySelectorAll('.dynamic-n2').forEach(el => el.textContent = n2);
+
+            // Generate multiples (up to 10 for demonstration)
+            const list1 = [];
+            const list2 = [];
+            for(let i=1; i<=10; i++) list1.push(n1 * i);
+            for(let i=1; i<=10; i++) list2.push(n2 * i);
+
+            // Find common multiples within these lists
+            const common = list1.filter(value => list2.includes(value));
+            const lcm = common.length > 0 ? Math.min(...common) : null;
+
+            // Render
+            const container1 = document.getElementById('lcm-list-1');
+            const container2 = document.getElementById('lcm-list-2');
+            const commonContainer = document.getElementById('lcm-common-list');
+            const finalResult = document.getElementById('lcm-final');
+
+            container1.innerHTML = '';
+            container2.innerHTML = '';
+            
+            list1.forEach(num => container1.appendChild(createBadge(num, common.includes(num))));
+            list2.forEach(num => container2.appendChild(createBadge(num, common.includes(num))));
+
+            if (common.length > 0) {
+                commonContainer.textContent = common.join(', ');
+                finalResult.textContent = lcm;
+            } else {
+                commonContainer.textContent = currentLang === 'zh' ? "前10個倍數中無公倍數" : "None in first 10";
+                finalResult.textContent = "...";
+            }
+
+            document.getElementById('lcm-results').classList.remove('hidden');
+        }
+
+        // --- Logic: HCF (Highest Common Factor) ---
+        function calculateHCF() {
+            const n1 = parseInt(document.getElementById('hcf-num1').value);
+            const n2 = parseInt(document.getElementById('hcf-num2').value);
+
+            if (!n1 || !n2 || n1 <= 0 || n2 <= 0) {
+                alert(currentLang === 'zh' ? "請輸入有效的正整數" : "Please enter valid positive integers");
+                return;
+            }
+
+            // Update Labels with Actual Numbers
+            document.querySelectorAll('.dynamic-hcf-n1').forEach(el => el.textContent = n1);
+            document.querySelectorAll('.dynamic-hcf-n2').forEach(el => el.textContent = n2);
+
+            // Generate factors
+            const getFactors = (num) => {
+                const factors = [];
+                for(let i=1; i<=num; i++) {
+                    if (num % i === 0) factors.push(i);
+                }
+                return factors;
+            };
+
+            const list1 = getFactors(n1);
+            const list2 = getFactors(n2);
+
+            // Find common factors
+            const common = list1.filter(value => list2.includes(value));
+            const hcf = Math.max(...common);
+
+            // Render
+            const container1 = document.getElementById('hcf-list-1');
+            const container2 = document.getElementById('hcf-list-2');
+            const commonContainer = document.getElementById('hcf-common-list');
+            const finalResult = document.getElementById('hcf-final');
+
+            container1.innerHTML = '';
+            container2.innerHTML = '';
+
+            list1.forEach(num => container1.appendChild(createBadge(num, common.includes(num))));
+            list2.forEach(num => container2.appendChild(createBadge(num, common.includes(num))));
+
+            commonContainer.textContent = common.join(', ');
+            finalResult.textContent = hcf;
+
+            document.getElementById('hcf-results').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

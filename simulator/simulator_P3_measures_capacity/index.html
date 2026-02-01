@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>容量概念模擬器</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f1f5f9;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Icons (Implemented as components to replace lucide-react) ---
+        
+        const IconBase = ({ children, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
+
+        const Beaker = (props) => <IconBase {...props}><path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/></IconBase>;
+        const RotateCcw = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></IconBase>;
+        const CheckCircle = (props) => <IconBase {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>;
+        const AlertCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></IconBase>;
+        const Globe = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></IconBase>;
+        const Droplets = (props) => <IconBase {...props}><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.8-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></IconBase>;
+        const ArrowRight = (props) => <IconBase {...props}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></IconBase>;
+        const Utensils = (props) => <IconBase {...props}><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></IconBase>;
+        const BookOpen = (props) => <IconBase {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></IconBase>;
+        const Wrench = (props) => <IconBase {...props}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></IconBase>;
+        
+        // Custom Bowl Icon
+        const BowlIcon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M20 9H4v2a8 8 0 0 0 8 8h0a8 8 0 0 0 8-8V9z" />
+                <path d="M4 9h16" />
+                <path d="M15 5v4" className="opacity-50" />
+                <path d="M9 5v4" className="opacity-50" />
+            </svg>
+        );
+
+        // --- Data & Logic ---
+
+        const translations = {
+          zh: {
+            title: "容量學習模擬器",
+            modes: {
+              meaning: "認識容量",
+              direct: "直接比較",
+              tools: "選擇工具",
+              indirect: "間接比較",
+            },
+            common: {
+              reset: "重置",
+              next: "下一題",
+              check: "檢查答案",
+              correct: "答對了！",
+              incorrect: "再試一次",
+              capacity: "容量",
+              full: "已滿",
+              overflow: "溢出了！",
+            },
+            meaning: {
+              instruction: "點擊按鈕注水，觀察什麼是「容量」。",
+              desc: "容量是一個容器「最多」能裝多少液體。",
+              fill: "注水",
+              empty: "倒空",
+              status_empty: "這是空的容器",
+              status_half: "容器裝了一半的水",
+              status_full: "容器裝滿了！這就是它的容量。",
+            },
+            direct: {
+              instruction: "將左邊裝滿水的容器倒入右邊，比較哪個容量大？",
+              pour_a_to_b: "將 A 倒入 B",
+              result_a_larger: "A 的水倒進去後溢出來了，表示 A 比 B 大。",
+              result_b_larger: "A 的水倒進去後還沒滿，表示 B 比 A 大。",
+              result_equal: "剛好裝滿！表示兩者容量相等。",
+              which_larger: "結論：哪個比較大？",
+              btn_a: "A 比較大",
+              btn_b: "B 比較大",
+            },
+            indirect: {
+              instruction: "使用「湯碗」作為中間工具，量度並比較兩個容器。",
+              pour_bowl: "倒入一碗",
+              count: "已倒入",
+              bowl_unit: "碗",
+              question: "哪個容器的容量比較大？",
+            },
+            tools: {
+              instruction: "請為以下情境選擇最適合的量度工具。",
+              q1: "要量度「感冒藥水」的份量 (約 5mL)",
+              q2: "要量度「水壺」的容量 (約 500mL)",
+              q3: "要量度「洗澡浴缸」的水量 (約 150L)",
+              tool_spoon: "量匙/針筒 (mL)",
+              tool_cup: "量杯 (mL/L)",
+              tool_bucket: "水桶 (L)",
+            }
+          },
+          en: {
+            title: "Volume Learning Sim",
+            modes: {
+              meaning: "Concept",
+              direct: "Direct Compare",
+              tools: "Select Tools",
+              indirect: "Indirect Compare",
+            },
+            common: {
+              reset: "Reset",
+              next: "Next",
+              check: "Check",
+              correct: "Correct!",
+              incorrect: "Try again",
+              capacity: "Capacity",
+              full: "Full",
+              overflow: "Overflow!",
+            },
+            meaning: {
+              instruction: "Click to fill water and understand 'Capacity'.",
+              desc: "Capacity is the maximum amount a container can hold.",
+              fill: "Fill Water",
+              empty: "Empty",
+              status_empty: "This container is empty.",
+              status_half: "It is half full.",
+              status_full: "It is full! This is its capacity.",
+            },
+            direct: {
+              instruction: "Pour the full container A into B. Which one is larger?",
+              pour_a_to_b: "Pour A into B",
+              result_a_larger: "Water overflowed! A is larger than B.",
+              result_b_larger: "Space left over. B is larger than A.",
+              result_equal: "Perfectly full! They are equal.",
+              which_larger: "Conclusion: Which is larger?",
+              btn_a: "A is larger",
+              btn_b: "B is larger",
+            },
+            indirect: {
+              instruction: "Use the 'Bowl' as an intermediate tool to measure and compare.",
+              pour_bowl: "Add 1 Bowl",
+              count: "Count",
+              bowl_unit: "bowls",
+              question: "Which container has a larger capacity?",
+            },
+            tools: {
+              instruction: "Choose the best tool for the situation.",
+              q1: "Measuring 'Cough Syrup' dosage (~5mL)",
+              q2: "Measuring a 'Water Bottle' (~500mL)",
+              q3: "Measuring a 'Bathtub' (~150L)",
+              tool_spoon: "Spoon/Syringe (mL)",
+              tool_cup: "Measuring Cup (mL/L)",
+              tool_bucket: "Bucket (L)",
+            }
+          }
+        };
+
+        // --- Visual Components ---
+
+        const BeakerVisual = ({ fillPercentage, width = "w-32", height = "h-48", shape = "default", label = "", overflow = false }) => {
+          const shapeStyles = {
+            default: "rounded-b-xl",
+            wide: "rounded-b-3xl", 
+            tall: "rounded-b-md",
+            bowl: "rounded-b-[4rem]", 
+          };
+
+          return (
+            <div className={`relative ${width} ${height} mx-auto mt-auto mb-8 transition-all duration-500`}>
+              {label && <div className="absolute -top-8 left-0 right-0 text-center font-bold text-slate-500 text-lg">{label}</div>}
+
+              {/* Overflow Effect */}
+              {overflow && (
+                <div className="absolute -right-4 top-0 h-full w-4 flex flex-col justify-end overflow-visible z-0">
+                  <div className="w-2 h-full bg-blue-300 rounded-full animate-pulse opacity-60 absolute top-2 right-0 transform rotate-12 origin-top-left"></div>
+                  <div className="absolute -bottom-2 -right-6 w-12 h-4 bg-blue-200 rounded-full blur-sm"></div>
+                </div>
+              )}
+
+              {/* Container */}
+              <div className={`absolute inset-0 border-x-4 border-b-4 border-slate-400 ${shapeStyles[shape]} bg-white/60 backdrop-blur-sm z-10 overflow-hidden shadow-sm`}>
+                {/* Water */}
+                <div 
+                  className="absolute bottom-0 w-full bg-blue-400/80 transition-all duration-700 ease-in-out flex items-start justify-center"
+                  style={{ height: `${Math.min(fillPercentage, 100)}%` }}
+                >
+                  <div className="w-full h-2 bg-blue-300/50 absolute top-0 animate-pulse"></div>
+                  {fillPercentage > 0 && (
+                    <React.Fragment>
+                      <div className="absolute bottom-4 left-4 w-2 h-2 bg-white/40 rounded-full animate-bounce delay-100"></div>
+                      <div className="absolute bottom-8 right-8 w-3 h-3 bg-white/30 rounded-full animate-bounce delay-700"></div>
+                    </React.Fragment>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        // --- Sub-Game Components ---
+
+        const MeaningMode = ({ t }) => {
+          const [level, setLevel] = useState(0); // 0, 50, 100
+
+          const getStatusText = () => {
+            if (level === 0) return t.meaning.status_empty;
+            if (level === 50) return t.meaning.status_half;
+            return t.meaning.status_full;
+          };
+
+          return (
+            <div className="flex flex-col items-center h-full animate-in fade-in">
+              <div className="flex-1 flex items-end justify-center pb-8">
+                <BeakerVisual 
+                  fillPercentage={level} 
+                  width="w-40" 
+                  height="h-56" 
+                  shape="default"
+                />
+              </div>
+              <div className="bg-indigo-50 p-4 rounded-xl text-center mb-6 w-full max-w-xs">
+                <p className="font-bold text-indigo-800 text-lg mb-2 transition-all">{getStatusText()}</p>
+                <p className="text-sm text-indigo-600">{t.meaning.desc}</p>
+              </div>
+              <div className="flex gap-4 w-full max-w-xs">
+                <button 
+                  onClick={() => setLevel(0)}
+                  className="flex-1 py-3 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-xl font-bold transition"
+                >
+                  {t.meaning.empty}
+                </button>
+                <button 
+                  onClick={() => setLevel(l => l >= 100 ? 100 : l + 50)}
+                  className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold shadow-md transition"
+                >
+                  {t.meaning.fill}
+                </button>
+              </div>
+            </div>
+          );
+        };
+
+        const DirectCompareMode = ({ t }) => {
+          const [state, setState] = useState('init'); 
+          const [setup, setSetup] = useState({ a: 1000, b: 800 });
+          const [fillA, setFillA] = useState(100);
+          const [fillB, setFillB] = useState(0);
+
+          const reset = () => {
+            const isALarger = Math.random() > 0.5;
+            setSetup({
+              a: isALarger ? 1000 : 800,
+              b: isALarger ? 800 : 1000,
+            });
+            setState('init');
+            setFillA(100);
+            setFillB(0);
+          };
+
+          const pour = () => {
+            setState('poured');
+            setFillA(0);
+            const ratio = setup.a / setup.b;
+            setFillB(ratio * 100); 
+          };
+
+          const check = (guessIsA) => {
+            const isALarger = setup.a > setup.b;
+            if (guessIsA === isALarger) setState('correct');
+            else setState('incorrect');
+          };
+
+          const isOverflow = state !== 'init' && setup.a > setup.b;
+
+          return (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="flex-1 flex justify-center items-end gap-8 pb-4">
+                <div className="flex flex-col items-center">
+                  <BeakerVisual 
+                    fillPercentage={fillA} 
+                    width={setup.a > setup.b ? "w-32" : "w-28"} 
+                    height="h-48" 
+                    shape="tall" 
+                    label="A"
+                  />
+                </div>
+                <div className="h-48 flex items-center justify-center text-slate-300">
+                   <ArrowRight size={32} className={state === 'poured' ? 'text-blue-500 animate-pulse' : ''} />
+                </div>
+                <div className="flex flex-col items-center">
+                  <BeakerVisual 
+                    fillPercentage={Math.min(fillB, 100)} 
+                    width={setup.b > setup.a ? "w-32" : "w-28"} 
+                    height="h-48" 
+                    shape="wide" 
+                    label="B"
+                    overflow={isOverflow}
+                  />
+                </div>
+              </div>
+
+              {state !== 'init' && (
+                <div className={`text-center mb-4 p-2 rounded-lg font-medium text-sm ${isOverflow ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                  {isOverflow ? t.direct.result_a_larger : t.direct.result_b_larger}
+                </div>
+              )}
+
+              <div className="mt-auto">
+                {state === 'init' ? (
+                  <button 
+                    onClick={pour}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg active:scale-95 transition flex items-center justify-center gap-2"
+                  >
+                    <Droplets size={20} />
+                    {t.direct.pour_a_to_b}
+                  </button>
+                ) : state === 'poured' ? (
+                  <div className="space-y-2">
+                    <p className="text-center text-slate-600 font-bold mb-2">{t.direct.which_larger}</p>
+                    <div className="flex gap-3">
+                      <button onClick={() => check(true)} className="flex-1 py-3 bg-white border-2 border-indigo-100 hover:border-indigo-500 rounded-xl font-bold text-indigo-700 transition">
+                        {t.direct.btn_a}
+                      </button>
+                      <button onClick={() => check(false)} className="flex-1 py-3 bg-white border-2 border-indigo-100 hover:border-indigo-500 rounded-xl font-bold text-indigo-700 transition">
+                        {t.direct.btn_b}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`p-4 rounded-xl flex items-center justify-between ${state === 'correct' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    <span className="font-bold flex items-center gap-2">
+                      {state === 'correct' ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
+                      {state === 'correct' ? t.common.correct : t.common.incorrect}
+                    </span>
+                    <button onClick={reset} className="bg-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">{t.common.next}</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const IndirectCompareMode = ({ t }) => {
+          const visualStyles = [
+            { id: 'tall', width: 'w-20', height: 'h-64', shape: 'tall' },
+            { id: 'wide', width: 'w-48', height: 'h-32', shape: 'wide' },
+            { id: 'box', width: 'w-32', height: 'h-48', shape: 'default' },
+            { id: 'bowl', width: 'w-44', height: 'h-36', shape: 'bowl' },
+          ];
+
+          const [containers, setContainers] = useState({
+            left: { capacity: 1000, current: 0, bowls: 0, ...visualStyles[0] },
+            right: { capacity: 1400, current: 0, bowls: 0, ...visualStyles[1] }
+          });
+          const [feedback, setFeedback] = useState(null);
+          
+          const BOWL_VOL = 200;
+
+          const reset = () => {
+            const isLeftLarger = Math.random() > 0.5;
+            const capacityL = isLeftLarger ? 1400 : 800;
+            const capacityR = isLeftLarger ? 800 : 1400;
+
+            let idx1 = Math.floor(Math.random() * visualStyles.length);
+            let idx2 = Math.floor(Math.random() * visualStyles.length);
+            while (idx1 === idx2) idx2 = Math.floor(Math.random() * visualStyles.length);
+
+            setContainers({
+              left: { capacity: capacityL, current: 0, bowls: 0, ...visualStyles[idx1] },
+              right: { capacity: capacityR, current: 0, bowls: 0, ...visualStyles[idx2] }
+            });
+            setFeedback(null);
+          };
+
+          const pour = (side) => {
+            if (feedback === 'correct') return;
+            setContainers(prev => {
+              const target = prev[side];
+              if (target.current >= target.capacity) return prev;
+              return {
+                ...prev,
+                [side]: {
+                  ...target,
+                  current: Math.min(target.current + BOWL_VOL, target.capacity),
+                  bowls: target.bowls + 1,
+                  width: target.width,
+                  height: target.height,
+                  shape: target.shape
+                }
+              };
+            });
+          };
+
+          const check = (choice) => {
+            const correct = containers.left.capacity > containers.right.capacity ? 'left' : 'right';
+            setFeedback(choice === correct ? 'correct' : 'incorrect');
+          };
+
+          return (
+            <div className="flex flex-col h-full animate-in fade-in">
+              <div className="flex-1 flex justify-center items-end gap-6 pb-2">
+                <div className="flex flex-col items-center group">
+                  <BeakerVisual 
+                    fillPercentage={(containers.left.current / containers.left.capacity) * 100} 
+                    width={containers.left.width} 
+                    height={containers.left.height} 
+                    shape={containers.left.shape} 
+                    label="A"
+                  />
+                  <div className="text-center -mt-6 mb-2">
+                    <span className="text-sm font-bold text-slate-500 bg-white/80 px-2 rounded-full">
+                      {containers.left.bowls} {t.indirect.bowl_unit}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => pour('left')}
+                    disabled={containers.left.current >= containers.left.capacity}
+                    className="p-3 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 disabled:opacity-50 transition shadow-sm"
+                  >
+                    <BowlIcon size={22} />
+                  </button>
+                </div>
+
+                <div className="h-32 w-px bg-slate-200"></div>
+
+                <div className="flex flex-col items-center group">
+                  <BeakerVisual 
+                    fillPercentage={(containers.right.current / containers.right.capacity) * 100} 
+                    width={containers.right.width} 
+                    height={containers.right.height} 
+                    shape={containers.right.shape} 
+                    label="B"
+                  />
+                  <div className="text-center -mt-6 mb-2">
+                    <span className="text-sm font-bold text-slate-500 bg-white/80 px-2 rounded-full">
+                      {containers.right.bowls} {t.indirect.bowl_unit}
+                    </span>
+                  </div>
+                  <button 
+                     onClick={() => pour('right')}
+                     disabled={containers.right.current >= containers.right.capacity}
+                     className="p-3 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 disabled:opacity-50 transition shadow-sm"
+                  >
+                    <BowlIcon size={22} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                {feedback !== 'correct' ? (
+                  <div className="space-y-3">
+                     <p className="text-center font-bold text-slate-600">{t.indirect.question}</p>
+                     <div className="flex gap-3">
+                       <button onClick={() => check('left')} className="flex-1 py-3 bg-white border border-slate-200 hover:border-indigo-500 rounded-xl font-bold">A</button>
+                       <button onClick={() => check('right')} className="flex-1 py-3 bg-white border border-slate-200 hover:border-indigo-500 rounded-xl font-bold">B</button>
+                     </div>
+                     {feedback === 'incorrect' && <p className="text-center text-red-500 text-sm font-bold">{t.common.incorrect}</p>}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-green-100 text-green-800 rounded-xl flex justify-between items-center">
+                    <span className="font-bold flex gap-2"><CheckCircle size={20}/> {t.common.correct}</span>
+                    <button onClick={reset} className="bg-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">{t.common.next}</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const ToolsMode = ({ t }) => {
+          const questions = [
+            { id: 1, text: t.tools.q1, correct: 'spoon' },
+            { id: 2, text: t.tools.q2, correct: 'cup' },
+            { id: 3, text: t.tools.q3, correct: 'bucket' },
+          ];
+          const [qIdx, setQIdx] = useState(0);
+          const [feedback, setFeedback] = useState(null);
+
+          const check = (tool) => {
+            if (tool === questions[qIdx].correct) setFeedback('correct');
+            else setFeedback('incorrect');
+          };
+
+          const next = () => {
+            setFeedback(null);
+            setQIdx((qIdx + 1) % questions.length);
+          };
+
+          return (
+            <div className="flex flex-col h-full animate-in fade-in justify-center">
+              <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl mb-8 text-center shadow-sm">
+                <h3 className="text-amber-900 font-bold text-lg mb-2">Q{qIdx + 1}</h3>
+                <p className="text-amber-800 text-xl font-medium">{questions[qIdx].text}</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 mb-6">
+                {[
+                  { id: 'spoon', label: t.tools.tool_spoon, icon: Utensils },
+                  { id: 'cup', label: t.tools.tool_cup, icon: Beaker },
+                  { id: 'bucket', label: t.tools.tool_bucket, icon: Droplets },
+                ].map((tool) => (
+                  <button
+                    key={tool.id}
+                    onClick={() => check(tool.id)}
+                    disabled={feedback === 'correct'}
+                    className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                      feedback === 'correct' && tool.id === questions[qIdx].correct ? 'bg-green-100 border-green-500 text-green-800' :
+                      feedback === 'correct' ? 'opacity-50 border-slate-100' :
+                      'bg-white border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="p-2 bg-white rounded-full shadow-sm"><tool.icon size={24} className="text-slate-500" /></div>
+                    <span className="font-bold text-lg">{tool.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {feedback && (
+                <div className={`p-4 rounded-xl flex items-center justify-between ${feedback === 'correct' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  <span className="font-bold flex items-center gap-2">
+                    {feedback === 'correct' ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
+                    {feedback === 'correct' ? t.common.correct : t.common.incorrect}
+                  </span>
+                  {feedback === 'correct' && (
+                    <button onClick={next} className="bg-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">{t.common.next}</button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const App = () => {
+          const [lang, setLang] = useState('zh');
+          const [mode, setMode] = useState('meaning');
+
+          const t = translations[lang];
+
+          return (
+            <div className="min-h-screen font-sans text-slate-800 flex flex-col items-center">
+              
+              <header className="w-full max-w-md bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center overflow-hidden border border-indigo-200">
+                    <img 
+                      src="logo.png" 
+                      alt="Logo" 
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.74 5.88a.996.996 0 0 1 .29.71L18 21.01H6l-.05-11.73c0-.26.11-.52.29-.71L12 2.69z"/><path d="M12 2.69l-5.75 5.88"/><path d="M12 22V6"/></svg>';
+                      }}
+                    />
+                  </div>
+                  <h1 className="font-bold text-lg text-indigo-900 tracking-tight">{t.title}</h1>
+                </div>
+                <button 
+                  onClick={() => setLang(l => l === 'zh' ? 'en' : 'zh')}
+                  className="flex items-center gap-1 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-indigo-100 transition-colors"
+                >
+                  <Globe size={16} />
+                  {lang === 'zh' ? 'EN' : '中'}
+                </button>
+              </header>
+
+              <main className="w-full max-w-md flex-1 p-4 pb-24">
+                
+                <div className="grid grid-cols-4 gap-1 bg-white rounded-xl p-1 shadow-sm mb-4">
+                  {[
+                    { id: 'meaning', icon: BookOpen, label: t.modes.meaning },
+                    { id: 'direct', icon: ArrowRight, label: t.modes.direct },
+                    { id: 'tools', icon: Wrench, label: t.modes.tools },
+                    { id: 'indirect', icon: BowlIcon, label: t.modes.indirect },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setMode(m.id)}
+                      className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-[10px] sm:text-xs font-medium transition-all duration-200 ${
+                        mode === m.id 
+                          ? 'bg-indigo-600 text-white shadow-md' 
+                          : 'text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      <m.icon size={18} className="mb-1" />
+                      <span className="text-center leading-tight line-clamp-1">{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 min-h-[500px] flex flex-col">
+                  
+                  <div className="text-center mb-6">
+                    <h2 className="text-xl font-bold text-slate-800 mb-1">{t.modes[mode]}</h2>
+                    <p className="text-slate-500 text-sm">
+                      {mode === 'meaning' && t.meaning.instruction}
+                      {mode === 'direct' && t.direct.instruction}
+                      {mode === 'indirect' && t.indirect.instruction}
+                      {mode === 'tools' && t.tools.instruction}
+                    </p>
+                  </div>
+
+                  <div className="flex-1">
+                    {mode === 'meaning' && <MeaningMode t={t} />}
+                    {mode === 'direct' && <DirectCompareMode t={t} />}
+                    {mode === 'indirect' && <IndirectCompareMode t={t} />}
+                    {mode === 'tools' && <ToolsMode t={t} />}
+                  </div>
+
+                </div>
+              </main>
+
+              <footer className="w-full text-center py-6 text-slate-400 text-xs">
+                <p>© 2026 Volume Sim. Educational Tool.</p>
+              </footer>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
