@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pizza 餐廳學分數遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #1F2937; /* Dark background for desktop framing */
+            touch-action: manipulation; /* Improves touch response */
+        }
+        /* Mobile Container styling */
+        #app-container {
+            background-color: #FFF5E6;
+        }
+        
+        .font-header {
+            font-family: 'Fredoka One', cursive;
+        }
+        .pizza-slice {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .pizza-slice:hover {
+            opacity: 0.8;
+        }
+        .speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border-radius: .4em;
+            padding: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid #333;
+        }
+        .speech-bubble:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 20%;
+            width: 0;
+            height: 0;
+            border: 15px solid transparent;
+            border-top-color: #ffffff;
+            border-bottom: 0;
+            border-left: 0;
+            margin-left: -7px;
+            margin-bottom: -15px;
+        }
+        .wiggle {
+            animation: wiggle 0.5s ease-in-out;
+        }
+        @keyframes wiggle {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #EF4444;
+            cursor: pointer;
+            margin-top: -8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #ddd;
+            border-radius: 4px;
+        }
+        
+        /* Image fallback styling */
+        .img-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f3f4f6;
+            color: #6b7280;
+            font-size: 3rem;
+        }
+
+        /* Sparkle animation for AI buttons */
+        @keyframes sparkle {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .ai-gradient {
+            background: linear-gradient(270deg, #6366f1, #a855f7, #ec4899);
+            background-size: 200% 200%;
+            animation: sparkle 3s ease infinite;
+        }
+
+        /* Custom Scrollbar for modal */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="h-[100dvh] w-full flex items-center justify-center overflow-hidden text-gray-800 select-none">
+
+    <!-- Mobile App Container Wrapper -->
+    <div id="app-container" class="relative w-full max-w-md h-full shadow-2xl overflow-hidden flex flex-col md:rounded-xl md:h-[95vh] md:border-4 md:border-gray-800">
+
+        <!-- Screen: Start Menu -->
+        <div id="start-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-yellow-50 p-6">
+            <div class="mb-6 relative w-48 h-48 sm:w-56 sm:h-56">
+                <!-- Game Cover Image -->
+                <img src="game.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" class="w-full h-full object-cover rounded-xl shadow-2xl border-4 border-white transform rotate-3" alt="Game Cover">
+                <div class="img-placeholder w-full h-full rounded-xl shadow-2xl border-4 border-white transform rotate-3 hidden flex-col">
+                    <span class="text-6xl">🍕</span>
+                    <span class="text-sm mt-2 font-bold">Pizza Master</span>
+                </div>
+            </div>
+            <h1 class="text-4xl font-header text-red-600 mb-2 text-center tracking-wider drop-shadow-sm">分數 Pizza 店</h1>
+            <p class="text-lg text-gray-600 mb-8 max-w-xs text-center">快來幫客人切出正確的 Pizza 份量！</p>
+            
+            <div class="flex flex-col space-y-4 w-full max-w-xs">
+                <button onclick="game.start()" class="bg-red-500 hover:bg-red-600 text-white text-xl font-bold py-4 px-10 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 border-b-4 border-red-700">
+                    開始營業
+                </button>
+                <button onclick="document.getElementById('rules-modal').classList.remove('hidden')" class="bg-white hover:bg-gray-100 text-gray-700 text-lg font-bold py-3 px-10 rounded-full shadow-md transform transition hover:scale-105 active:scale-95 border border-gray-300">
+                    📖 遊戲說明 & AI 功能
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal: Rules & AI Info -->
+        <div id="rules-modal" class="hidden absolute inset-0 z-[60] bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+                <div class="p-4 bg-yellow-100 border-b border-yellow-200 flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-gray-800">🍕 廚師手冊</h3>
+                    <button onclick="document.getElementById('rules-modal').classList.add('hidden')" class="text-gray-500 hover:text-red-500 text-2xl font-bold">&times;</button>
+                </div>
+                
+                <div class="p-5 overflow-y-auto custom-scrollbar space-y-6 text-sm">
+                    <!-- Section 1: Basic Rules -->
+                    <section>
+                        <h4 class="text-lg font-bold text-red-600 mb-2 flex items-center">
+                            <span class="bg-red-100 p-1 rounded mr-2">1</span> 基礎規則
+                        </h4>
+                        <ul class="space-y-2 text-gray-700 list-disc list-inside bg-gray-50 p-3 rounded-lg">
+                            <li>客人會點餐，例如：<strong>"我要 1/2"</strong>。</li>
+                            <li><strong>切分母</strong>：拉動滑桿把 Pizza 切成 2 片。</li>
+                            <li><strong>選分子</strong>：點擊 Pizza 選取 1 片。</li>
+                            <li>完成後按下「完成」按鈕送餐！</li>
+                            <li class="text-red-600 font-bold">注意：難度會隨遊戲增加，題目會從單純切分變成「分數加法」喔！</li>
+                        </ul>
+                    </section>
+
+                    <!-- Section 2: AI Mystery Guest -->
+                    <section>
+                        <h4 class="text-lg font-bold text-purple-600 mb-2 flex items-center">
+                            <span class="bg-purple-100 p-1 rounded mr-2">✨</span> AI 神秘客
+                        </h4>
+                        <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                            <p class="mb-2">點擊遊戲畫面上方的 <span class="ai-gradient text-white text-[10px] px-2 py-0.5 rounded-full">✨ 神秘客</span> 按鈕。</p>
+                            <p class="text-gray-600">AI 會召喚出海盜、外星人或國王等角色，並用有趣的文字出題，考驗你的數學閱讀能力！</p>
+                        </div>
+                    </section>
+
+                    <!-- Section 3: AI Chef Hint -->
+                    <section>
+                        <h4 class="text-lg font-bold text-green-600 mb-2 flex items-center">
+                            <span class="bg-green-100 p-1 rounded mr-2">💡</span> 廚神提示
+                        </h4>
+                        <div class="bg-green-50 p-3 rounded-lg border border-green-100">
+                            <p class="mb-2"><strong>切錯了怎麼辦？</strong></p>
+                            <p class="text-gray-600">別擔心！AI 廚神會根據你切錯的片數，給出專屬的教學提示，教你如何計算不同分母的分數。</p>
+                        </div>
+                    </section>
+                </div>
+                
+                <div class="p-4 border-t border-gray-100 bg-gray-50 text-center">
+                    <button onclick="document.getElementById('rules-modal').classList.add('hidden')" class="bg-red-500 text-white font-bold py-2 px-8 rounded-full shadow hover:bg-red-600 transition">
+                        我知道了！
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen: Pause Menu -->
+        <div id="pause-screen" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-70 text-white backdrop-blur-sm">
+            <h2 class="text-5xl font-header text-yellow-400 mb-8 tracking-wider">暫停中</h2>
+            <div class="flex flex-col space-y-4 w-64">
+                <button onclick="game.togglePause()" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-4 px-8 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 border-b-4 border-green-700 flex justify-center items-center">
+                    <span class="mr-2">▶️</span> 繼續遊戲
+                </button>
+                <button onclick="game.goHome()" class="bg-gray-500 hover:bg-gray-600 text-white text-xl font-bold py-4 px-8 rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 border-b-4 border-gray-700 flex justify-center items-center">
+                    <span class="mr-2">🏠</span> 回到首頁
+                </button>
+            </div>
+        </div>
+
+        <!-- Screen: Game Over -->
+        <div id="game-over-screen" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-90 text-white">
+            <h2 class="text-5xl font-header text-yellow-400 mb-4">今日結算</h2>
+            <div class="text-2xl mb-2">賺取金額: $<span id="final-score">0</span></div>
+            <div class="text-lg mb-8 text-gray-300">完成訂單數: <span id="final-orders">0</span></div>
+            <button onclick="location.reload()" class="bg-green-500 hover:bg-green-600 text-white text-xl font-bold py-3 px-8 rounded-full shadow-lg transform transition hover:scale-105">
+                再次挑戰
+            </button>
+        </div>
+
+        <!-- AI Loading Overlay -->
+        <div id="ai-loading" class="hidden absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black bg-opacity-50 text-white">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+            <p class="text-lg font-bold animate-pulse">✨ AI 正在思考中...</p>
+        </div>
+
+        <!-- Main Game Interface -->
+        <div id="game-ui" class="flex-1 flex flex-col hidden h-full">
+            
+            <!-- Header: Stats -->
+            <header class="bg-white shadow-md p-2 px-3 flex justify-between items-center z-10 shrink-0">
+                <div class="flex items-center space-x-2">
+                    <!-- Pause Button -->
+                    <button onclick="game.togglePause()" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 border border-gray-300 shadow-sm active:scale-95 transition">
+                        ⏸️
+                    </button>
+                    <!-- Company Logo -->
+                    <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-red-100 bg-red-50">
+                        <img src="logo.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" class="w-full h-full object-cover">
+                        <div class="hidden w-full h-full flex items-center justify-center text-lg">👨‍🍳</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider leading-none">Level <span id="level-display">1</span></div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <!-- AI Summon Button -->
+                    <button onclick="game.summonAIGuest()" class="ai-gradient text-white text-xs font-bold px-2 py-1 rounded-full shadow-md transform active:scale-95 flex items-center">
+                        <span>✨ 神秘客</span>
+                    </button>
+
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] text-gray-500 font-bold leading-none">TIME</span>
+                        <span id="timer" class="text-xl font-mono font-bold text-gray-800 leading-tight">60</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[10px] text-gray-500 font-bold leading-none">MONEY</span>
+                        <span class="text-xl font-header text-green-600 leading-tight">$<span id="score">0</span></span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Client Area -->
+            <div class="bg-yellow-100 shrink-0 h-[30%] min-h-[160px] flex items-center justify-center relative border-b-4 border-yellow-200 overflow-hidden">
+                <!-- Background pattern -->
+                <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#EF4444 2px, transparent 2px); background-size: 20px 20px;"></div>
+
+                <div class="w-full max-w-sm flex items-center justify-center space-x-3 px-4 relative z-10">
+                    <!-- Client Image -->
+                    <div class="w-20 h-20 flex-shrink-0 relative">
+                        <!-- Standard Image -->
+                        <img src="client.png" id="client-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" class="w-full h-full object-contain filter drop-shadow-lg transform transition duration-500">
+                        <!-- Emoji Fallback / AI Avatar -->
+                        <div id="client-emoji" class="hidden w-full h-full flex items-center justify-center text-5xl bg-white rounded-full border-4 border-gray-200 shadow-lg">
+                            😋
+                        </div>
+                        <div id="ai-badge" class="hidden absolute -top-2 -left-2 bg-purple-600 text-white text-[10px] px-2 py-0.5 rounded-full shadow border border-white">✨ AI</div>
+                    </div>
+                    
+                    <!-- Order Bubble -->
+                    <div class="speech-bubble flex-1">
+                        <div class="flex justify-between items-start">
+                            <p class="text-gray-500 text-[10px] font-bold mb-0.5 uppercase" id="client-name">Order Ticket</p>
+                        </div>
+                        <div id="order-text" class="text-base font-bold text-gray-800 leading-snug">
+                            你好！我想要 <span class="text-red-600 text-xl">1/2</span> 份 Pizza。
+                        </div>
+                        <!-- AI Hint Area (Hidden initially) -->
+                        <div id="ai-hint-box" class="hidden mt-2 p-2 bg-purple-50 rounded text-xs text-purple-800 border border-purple-200 animate-pulse">
+                            <span class="font-bold">✨ 廚神提示:</span> <span id="ai-hint-text">...</span>
+                        </div>
+                        <!-- Feedback message -->
+                        <div id="feedback-msg" class="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md hidden text-xl">✅</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work Area -->
+            <div class="flex-1 bg-white relative flex flex-col items-center justify-between p-4 overflow-y-auto">
+                
+                <!-- Canvas Container -->
+                <div class="relative flex-1 flex items-center justify-center w-full min-h-[200px]">
+                    <!-- Using standard size for internal resolution, CSS for display size -->
+                    <canvas id="pizza-canvas" width="300" height="300" class="w-[280px] h-[280px] cursor-pointer transform transition active:scale-95 drop-shadow-xl"></canvas>
+                    
+                    <!-- Hint text -->
+                    <div class="absolute bottom-0 w-full text-center text-gray-400 text-xs pointer-events-none pb-2">
+                        點擊 Pizza 選取份數
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="w-full bg-gray-50 p-3 rounded-xl shadow-inner border border-gray-200 mt-2 shrink-0">
+                    
+                    <!-- Cut Control -->
+                    <div class="mb-3">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-bold text-gray-700 text-sm flex items-center">
+                                <span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded text-xs mr-2">1</span>
+                                切幾片? (分母)
+                            </label>
+                            <span id="slice-count-display" class="bg-gray-800 text-white px-2 py-0.5 rounded text-sm font-mono">1</span>
+                        </div>
+                        <input type="range" id="slice-slider" min="1" max="12" value="1" class="w-full h-6 bg-transparent rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-gray-400 -mt-1 px-1">
+                            <span>1</span>
+                            <span>6</span>
+                            <span>12</span>
+                        </div>
+                    </div>
+
+                    <!-- Info Display & Action -->
+                    <div class="flex items-center justify-between border-t border-gray-200 pt-3">
+                        <div class="text-gray-700 text-sm">
+                            已選: <strong class="text-lg text-red-600" id="selected-count">0</strong> <span class="text-gray-400 text-xs">/ <span id="total-count">1</span></span>
+                        </div>
+                        <button onclick="game.submitOrder()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg shadow-md transition transform active:scale-95 flex items-center text-sm">
+                            <span>完成</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+const apiKey = ""; // System will inject this
+
+/**
+ * Game Logic
+ */
+const game = {
+    state: {
+        score: 0,
+        completedOrders: 0,
+        timeLeft: 120,
+        level: 1,
+        timerInterval: null,
+        isPaused: false,
+        currentOrder: {
+            targetValue: 0,
+            text: "",
+            isAI: false,
+            numerator: 0,
+            denominator: 0
+        },
+        pizza: {
+            totalSlices: 1,
+            selectedIndices: []
+        },
+        isActive: false
+    },
+
+    dom: {
+        startScreen: document.getElementById('start-screen'),
+        gameUi: document.getElementById('game-ui'),
+        gameOverScreen: document.getElementById('game-over-screen'),
+        pauseScreen: document.getElementById('pause-screen'),
+        aiLoading: document.getElementById('ai-loading'),
+        timer: document.getElementById('timer'),
+        score: document.getElementById('score'),
+        levelDisplay: document.getElementById('level-display'),
+        orderText: document.getElementById('order-text'),
+        feedbackMsg: document.getElementById('feedback-msg'),
+        clientImg: document.getElementById('client-img'),
+        clientEmoji: document.getElementById('client-emoji'),
+        clientName: document.getElementById('client-name'),
+        aiBadge: document.getElementById('ai-badge'),
+        aiHintBox: document.getElementById('ai-hint-box'),
+        aiHintText: document.getElementById('ai-hint-text'),
+        canvas: document.getElementById('pizza-canvas'),
+        sliceSlider: document.getElementById('slice-slider'),
+        sliceCountDisplay: document.getElementById('slice-count-display'),
+        selectedCountDisplay: document.getElementById('selected-count'),
+        totalCountDisplay: document.getElementById('total-count'),
+        finalScore: document.getElementById('final-score'),
+        finalOrders: document.getElementById('final-orders'),
+        ctx: null
+    },
+
+    init: function() {
+        this.dom.ctx = this.dom.canvas.getContext('2d');
+        
+        this.dom.sliceSlider.addEventListener('input', (e) => {
+            this.updatePizzaCuts(parseInt(e.target.value));
+        });
+
+        this.dom.canvas.addEventListener('mousedown', (e) => this.handleCanvasClick(e));
+        this.dom.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousedown", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            this.dom.canvas.dispatchEvent(mouseEvent);
+        }, {passive: false});
+
+        this.updatePizzaVisuals();
+    },
+
+    start: function() {
+        this.state.score = 0;
+        this.state.completedOrders = 0;
+        this.state.timeLeft = 120;
+        this.state.level = 1;
+        this.state.isActive = true;
+        this.state.isPaused = false;
+
+        this.dom.startScreen.classList.add('hidden');
+        this.dom.gameOverScreen.classList.add('hidden');
+        this.dom.gameUi.classList.remove('hidden');
+        this.dom.gameUi.classList.add('flex');
+
+        this.updateUI();
+        this.nextOrder();
+        
+        if (this.state.timerInterval) clearInterval(this.state.timerInterval);
+        this.state.timerInterval = setInterval(() => {
+            if (!this.state.isPaused) {
+                this.state.timeLeft--;
+                this.dom.timer.textContent = this.state.timeLeft;
+                if (this.state.timeLeft <= 30) this.dom.timer.classList.add('text-red-600');
+                else this.dom.timer.classList.remove('text-red-600');
+
+                if (this.state.timeLeft <= 0) {
+                    this.endGame();
+                }
+            }
+        }, 1000);
+    },
+
+    togglePause: function() {
+        if (!this.state.isActive) return;
+        this.state.isPaused = !this.state.isPaused;
+        if (this.state.isPaused) {
+            this.dom.pauseScreen.classList.remove('hidden');
+        } else {
+            this.dom.pauseScreen.classList.add('hidden');
+        }
+    },
+
+    goHome: function() {
+        // Reset and go to start screen
+        this.state.isActive = false;
+        this.state.isPaused = false;
+        clearInterval(this.state.timerInterval);
+        
+        this.dom.pauseScreen.classList.add('hidden');
+        this.dom.gameUi.classList.add('hidden');
+        this.dom.gameUi.classList.remove('flex');
+        this.dom.gameOverScreen.classList.add('hidden');
+        this.dom.startScreen.classList.remove('hidden');
+        
+        // Reset visuals slightly so next start feels fresh
+        this.dom.aiHintBox.classList.add('hidden');
+    },
+
+    endGame: function() {
+        this.state.isActive = false;
+        clearInterval(this.state.timerInterval);
+        this.dom.gameUi.classList.add('hidden');
+        this.dom.gameOverScreen.classList.remove('hidden');
+        this.dom.finalScore.textContent = this.state.score;
+        this.dom.finalOrders.textContent = this.state.completedOrders;
+    },
+
+    // ✨ AI Feature 1: Summon AI Guest
+    summonAIGuest: async function() {
+        if (!this.state.isActive || this.state.isPaused) return;
+        
+        this.dom.aiLoading.classList.remove('hidden');
+        
+        try {
+            // Force pause timer visually (optional, logic still runs) or give bonus time
+            this.state.timeLeft += 10; // Bonus time for waiting
+            this.updateUI();
+
+            const prompt = `You are a creative game writer for a kids' fraction game. 
+            Generate a JSON object for a unique customer character.
+            The JSON must have:
+            - "name": A creative character name (e.g., 'Captain Hook', 'Alien', 'Math Teacher') in Traditional Chinese.
+            - "emoji": A single emoji representing them.
+            - "dialogue": A short sentence (max 20 words) asking for pizza in Traditional Chinese. Try to be creative (e.g., "I want half the treasure", "Give me a quarter of the fuel").
+            - "numerator": integer (1 to 11).
+            - "denominator": integer (values: 2, 3, 4, 6, 8, 12).
+            Ensure numerator < denominator.`;
+
+            const response = await this.callGemini(prompt, true); // true for JSON
+            
+            if (response) {
+                const data = JSON.parse(response);
+                this.setAIOrder(data);
+            } else {
+                throw new Error("No response");
+            }
+        } catch (e) {
+            console.warn("AI unavailable, using fallback:", e);
+            // Fallback content if API fails (e.g. no key)
+            const fallbacks = [
+                {name: "海盜船長", emoji: "🏴‍☠️", dialogue: "我要 1/2 的寶藏 Pizza！", numerator: 1, denominator: 2},
+                {name: "外星人", emoji: "👽", dialogue: "帶我去你的 Pizza 星球，我要 3/4 的燃料！", numerator: 3, denominator: 4},
+                {name: "貓咪國王", emoji: "🐱", dialogue: "朕餓了，給朕 2/3 的魚口味 Pizza。", numerator: 2, denominator: 3},
+                {name: "機器人", emoji: "🤖", dialogue: "電池能量不足，需要 5/6 的電力補充。", numerator: 5, denominator: 6},
+                {name: "魔法師", emoji: "🧙‍♂️", dialogue: "為了施展魔法，我需要 1/4 的魔力切片。", numerator: 1, denominator: 4}
+            ];
+            const data = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            this.setAIOrder(data);
+        } finally {
+            this.dom.aiLoading.classList.add('hidden');
+        }
+    },
+
+    setAIOrder: function(data) {
+        this.state.currentOrder.targetValue = data.numerator / data.denominator;
+        this.state.currentOrder.text = data.dialogue;
+        this.state.currentOrder.isAI = true;
+        this.state.currentOrder.numerator = data.numerator;
+        this.state.currentOrder.denominator = data.denominator;
+
+        // Update UI for AI guest
+        this.dom.clientImg.style.display = 'none';
+        this.dom.clientEmoji.style.display = 'flex';
+        this.dom.clientEmoji.textContent = data.emoji;
+        this.dom.aiBadge.classList.remove('hidden');
+        this.dom.clientName.textContent = `✨ 特別嘉賓: ${data.name}`;
+        
+        // Highlight critical numbers in red if they exist in dialogue, otherwise append info
+        // Simple regex replace for numbers to red
+        let formattedText = data.dialogue.replace(/(\d+[\/／]\d+)/g, '<span class="text-purple-600 text-xl">$1</span>');
+        // If no numbers in dialogue, we might want to hint them? Or let it be a puzzle.
+        // Let's append the fraction just in case the dialogue is too abstract
+        formattedText += ` <span class="text-xs text-gray-400 block mt-1">(提示: ${data.numerator}/${data.denominator})</span>`;
+
+        this.dom.orderText.innerHTML = formattedText;
+        
+        // Reset Pizza
+        this.state.pizza.totalSlices = 1;
+        this.state.pizza.selectedIndices = [];
+        this.dom.sliceSlider.value = 1;
+        this.updatePizzaVisuals();
+        this.dom.feedbackMsg.classList.add('hidden');
+        this.dom.aiHintBox.classList.add('hidden');
+    },
+
+    // ✨ AI Feature 2: Get Hint on Failure
+    getAIHint: async function(userNum, userDen) {
+        const targetNum = this.state.currentOrder.numerator;
+        const targetDen = this.state.currentOrder.denominator;
+        const level = this.state.level;
+        
+        // Only fetch hint if we have clear numerators
+        let tNum = targetNum, tDen = targetDen;
+        if (!this.state.currentOrder.isAI && tNum === 0) {
+            tNum = "?"; tDen = "?";
+        }
+
+        // 定義教學策略 (Pedagogy Strategy)
+        let pedagogyInstruction = "";
+        
+        if (level === 3) {
+            // Level 3: 異分母 (Different Denominators)
+            pedagogyInstruction = `
+            The student is struggling with adding fractions with different denominators (Level 3).
+            Please explain how to calculate or visualize this.
+            Step 1: Suggest finding a common denominator (LCM) or "common number of slices".
+            Step 2: Don't just give the answer. Ask them to cut the pizza into that common number first.
+            Step 3: Explain that once cut correctly, they can add the numerators.
+            Example: "For 1/2 + 1/3, try cutting into 6 slices. Then you can see how many slices each part is."
+            Current Goal: ${tNum}/${tDen} (approx).
+            `;
+        } else if (level === 2) {
+             // Level 2: 同分母加法 (Same Denominator Addition)
+            pedagogyInstruction = `
+            The student is doing simple addition with same denominators (Level 2).
+            Explain: "Since the denominator is ${tDen}, you should cut the pizza into ${tDen} pieces first."
+            Then explain: "Don't just count the final slices. Add the top numbers (numerators) together to know how many to take."
+            Example: "Cut into 4 pieces. Then add 1 slice + 2 slices = 3 slices."
+            `;
+        } else {
+            // Level 1: 基礎觀念 (Basic Concepts)
+            pedagogyInstruction = `
+            The student needs help with basic fraction concepts (Level 1).
+            Please strictly follow this teaching pattern:
+            "Explain that the Denominator (bottom number) means 'how many pieces to cut total', and Numerator (top number) means 'how many pieces to take'."
+            Example format: "1/2 means first cut into 2 parts, then select 1 part."
+            Apply this to the goal: ${tNum}/${tDen}.
+            `;
+        }
+
+        const prompt = `Role: Friendly Math Chef Teacher for kids.
+        Language: Traditional Chinese (Taiwan).
+        Context: The user needs to make a pizza of ${tNum}/${tDen}.
+        User's Mistake: They cut it into ${userDen} slices and took ${userNum}.
+        
+        Task: Provide a helpful hint (max 2-3 sentences).
+        Pedagogy Requirement: ${pedagogyInstruction}
+        Tone: Encouraging and educational.`;
+
+        try {
+            const text = await this.callGemini(prompt, false);
+            if (!text) throw new Error("No text");
+            this.dom.aiHintText.textContent = text;
+            this.dom.aiHintBox.classList.remove('hidden');
+        } catch (e) {
+            console.log("Hint AI failed, using fallback");
+            // Fallback hint logic
+            let fallbackText = "";
+            if (level === 3) {
+                 fallbackText = `這是異分母加法喔！試試看找出 ${tDen} 的切法，讓大家都能分到！`;
+            } else if (level === 2) {
+                 fallbackText = `分母一樣是 ${tDen}，所以先切 ${tDen} 片，再把大家要的片數加起來！`;
+            } else {
+                 fallbackText = `${tNum}/${tDen} 的意思是：先切成 ${tDen} 等份，再選取 ${tNum} 份喔！`;
+            }
+            this.dom.aiHintText.textContent = fallbackText;
+            this.dom.aiHintBox.classList.remove('hidden');
+        }
+    },
+
+    callGemini: async function(prompt, isJson) {
+        // REMOVED: if (!apiKey) return null; to ensure we don't block if key is injected in other ways
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: isJson ? { responseMimeType: "application/json" } : {}
+        };
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                // If 400/403, it means key is missing or invalid.
+                // We return null so the fallback logic in caller functions can take over.
+                console.warn("Gemini API returned error status:", res.status);
+                return null;
+            }
+
+            const data = await res.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text;
+        } catch (error) {
+            console.error("Gemini Fetch error:", error);
+            return null;
+        }
+    },
+
+    nextOrder: function() {
+        if (this.state.completedOrders < 3) this.state.level = 1;
+        else if (this.state.completedOrders < 7) this.state.level = 2;
+        else this.state.level = 3;
+
+        this.dom.levelDisplay.textContent = this.state.level;
+
+        // Reset AI UI elements
+        this.dom.aiBadge.classList.add('hidden');
+        this.dom.clientEmoji.style.display = 'none';
+        this.dom.clientImg.style.display = 'block'; // Try to show image
+        this.dom.clientImg.onerror = function() {
+             this.style.display='none'; 
+             document.getElementById('client-emoji').style.display='flex';
+             document.getElementById('client-emoji').textContent = '😋';
+        };
+        // Trigger onerror manually if src is broken/missing to reset default emoji
+        if (this.dom.clientImg.naturalWidth === 0) this.dom.clientImg.dispatchEvent(new Event('error'));
+
+        this.dom.clientName.textContent = "Order Ticket";
+        this.dom.aiHintBox.classList.add('hidden');
+
+        // Standard Logic
+        let problem = this.generateProblem(this.state.level);
+        this.state.currentOrder.targetValue = problem.value;
+        this.state.currentOrder.text = problem.text;
+        this.state.currentOrder.isAI = false;
+        // Store for hint
+        this.state.currentOrder.numerator = problem.num; 
+        this.state.currentOrder.denominator = problem.den;
+        
+        this.dom.orderText.innerHTML = problem.text;
+        
+        this.state.pizza.totalSlices = 1;
+        this.state.pizza.selectedIndices = [];
+        this.dom.sliceSlider.value = 1;
+        
+        this.dom.clientImg.classList.remove('wiggle');
+        void this.dom.clientImg.offsetWidth;
+        this.dom.clientImg.classList.add('wiggle');
+        
+        this.updatePizzaVisuals();
+        this.dom.feedbackMsg.classList.add('hidden');
+    },
+
+    generateProblem: function(level) {
+        const friendlyDenominators = [2, 3, 4, 5, 6, 8, 10, 12];
+        const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+
+        let num, den, num2, den2;
+        let text = "";
+        let value = 0;
+        let finalNum = 0, finalDen = 0;
+
+        if (level === 1) {
+            den = rand(friendlyDenominators);
+            num = Math.floor(Math.random() * (den - 1)) + 1;
+            let common = gcd(num, den);
+            text = `你好，我想要 <span class="text-red-600 text-2xl">${num/common}/${den/common}</span> 份 Pizza。`;
+            value = num / den;
+            finalNum = num; finalDen = den;
+        } 
+        else if (level === 2) {
+            den = rand(friendlyDenominators);
+            let maxNum = den;
+            num = Math.floor(Math.random() * (maxNum - 2)) + 1;
+            num2 = Math.floor(Math.random() * (maxNum - num)) + 1;
+            if (num + num2 > den) num2 = 1;
+
+            text = `我要 <span class="text-red-600 font-bold">${num}/${den}</span>，我的朋友要 <span class="text-red-600 font-bold">${num2}/${den}</span>。`;
+            value = (num + num2) / den;
+            finalNum = num + num2; finalDen = den;
+        } 
+        else {
+            let possiblePairs = [
+                {n1:1, d1:2, n2:1, d2:4},
+                {n1:1, d1:3, n2:1, d2:6},
+                {n1:1, d1:4, n2:1, d2:4},
+                {n1:1, d1:2, n2:1, d2:6},
+                {n1:1, d1:3, n2:1, d2:3},
+                {n1:1, d1:6, n2:1, d2:6},
+                {n1:1, d1:4, n2:1, d2:2},
+            ];
+            let p = rand(possiblePairs);
+            text = `思考中... 我要 <span class="text-blue-600 font-bold">${p.n1}/${p.d1}</span>，朋友要 <span class="text-green-600 font-bold">${p.n2}/${p.d2}</span>。`;
+            value = (p.n1/p.d1) + (p.n2/p.d2);
+            // Rough approx for hint
+            finalNum = Math.round(value * 12); finalDen = 12; 
+        }
+
+        return { text, value, num: finalNum, den: finalDen };
+    },
+
+    updatePizzaCuts: function(slices) {
+        this.state.pizza.totalSlices = slices;
+        this.state.pizza.selectedIndices = []; 
+        this.updatePizzaVisuals();
+    },
+
+    handleCanvasClick: function(e) {
+        const rect = this.dom.canvas.getBoundingClientRect();
+        const scaleX = this.dom.canvas.width / rect.width;
+        const scaleY = this.dom.canvas.height / rect.height;
+
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        
+        const centerX = this.dom.canvas.width / 2;
+        const centerY = this.dom.canvas.height / 2;
+        const radius = 130;
+
+        const dx = x - centerX;
+        const dy = y - centerY;
+        if (Math.sqrt(dx*dx + dy*dy) > radius) return;
+
+        let angle = Math.atan2(dy, dx);
+        if (angle < 0) angle += 2 * Math.PI;
+
+        angle += 0.5 * Math.PI;
+        if (angle > 2 * Math.PI) angle -= 2 * Math.PI;
+
+        const sliceAngle = (2 * Math.PI) / this.state.pizza.totalSlices;
+        const clickedIndex = Math.floor(angle / sliceAngle);
+
+        const idxInArray = this.state.pizza.selectedIndices.indexOf(clickedIndex);
+        if (idxInArray > -1) {
+            this.state.pizza.selectedIndices.splice(idxInArray, 1);
+        } else {
+            this.state.pizza.selectedIndices.push(clickedIndex);
+        }
+        
+        this.updatePizzaVisuals();
+    },
+
+    drawPizza: function() {
+        const ctx = this.dom.ctx;
+        const width = this.dom.canvas.width;
+        const height = this.dom.canvas.height;
+        const cx = width / 2;
+        const cy = height / 2;
+        const r = 130;
+        const slices = this.state.pizza.totalSlices;
+
+        ctx.clearRect(0, 0, width, height);
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 5, 0, 2 * Math.PI);
+        ctx.fillStyle = "#ECA869";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.fillStyle = "#F5D76E";
+        ctx.fill();
+        ctx.strokeStyle = "#D35400";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        const sliceAngle = (2 * Math.PI) / slices;
+        const startOffset = -0.5 * Math.PI;
+
+        for (let i = 0; i < slices; i++) {
+            const startAngle = startOffset + (i * sliceAngle);
+            const endAngle = startAngle + sliceAngle;
+            
+            const isSelected = this.state.pizza.selectedIndices.includes(i);
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, startAngle, endAngle);
+            ctx.closePath();
+
+            if (isSelected) {
+                ctx.fillStyle = "#FF6B6B";
+                ctx.fill();
+                this.drawToppings(ctx, cx, cy, r, startAngle, endAngle);
+            }
+
+            ctx.stroke();
+        }
+    },
+
+    drawToppings: function(ctx, cx, cy, r, startAngle, endAngle) {
+        const midAngle = (startAngle + endAngle) / 2;
+        const dist = r * 0.6;
+        const px = cx + Math.cos(midAngle) * dist;
+        const py = cy + Math.sin(midAngle) * dist;
+
+        ctx.beginPath();
+        ctx.arc(px, py, 8, 0, 2*Math.PI);
+        ctx.fillStyle = "#A93226";
+        ctx.fill();
+    },
+
+    updatePizzaVisuals: function() {
+        this.dom.sliceCountDisplay.textContent = this.state.pizza.totalSlices;
+        this.dom.selectedCountDisplay.textContent = this.state.pizza.selectedIndices.length;
+        this.dom.totalCountDisplay.textContent = this.state.pizza.totalSlices;
+        
+        const percent = ((this.state.pizza.totalSlices - 1) / 11) * 100;
+        this.dom.sliceSlider.style.background = `linear-gradient(to right, #EF4444 0%, #EF4444 ${percent}%, #ddd ${percent}%, #ddd 100%)`;
+
+        this.drawPizza();
+    },
+
+    submitOrder: function() {
+        if (!this.state.isActive || this.state.isPaused) return;
+
+        const currentFraction = this.state.pizza.selectedIndices.length / this.state.pizza.totalSlices;
+        const target = this.state.currentOrder.targetValue;
+        
+        // Slightly looser tolerance for float math
+        const isCorrect = Math.abs(currentFraction - target) < 0.0001;
+
+        if (isCorrect) {
+            // Success
+            this.state.score += this.state.currentOrder.isAI ? 50 : (10 + (this.state.level * 5));
+            this.state.completedOrders++;
+            this.showFeedback(true);
+            setTimeout(() => this.nextOrder(), 1500);
+        } else {
+            // Fail
+            this.showFeedback(false);
+            this.state.timeLeft = Math.max(0, this.state.timeLeft - 5);
+            this.dom.timer.classList.add('animate-ping');
+            setTimeout(() => this.dom.timer.classList.remove('animate-ping'), 500);
+
+            // ✨ Trigger AI Hint on failure
+            this.getAIHint(this.state.pizza.selectedIndices.length, this.state.pizza.totalSlices);
+        }
+        this.updateUI();
+    },
+
+    showFeedback: function(isSuccess) {
+        const fb = this.dom.feedbackMsg;
+        fb.classList.remove('hidden');
+        if (isSuccess) {
+            fb.textContent = "✅";
+            fb.className = "absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md text-2xl animate-bounce border-2 border-green-500 z-50";
+        } else {
+            fb.textContent = "❌";
+            fb.className = "absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-md text-2xl border-2 border-red-500 z-50";
+        }
+    },
+
+    updateUI: function() {
+        this.dom.score.textContent = this.state.score;
+        this.dom.timer.textContent = this.state.timeLeft;
+    }
+};
+
+game.init();
+
+</script>
+</body>
+</html>
