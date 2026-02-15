@@ -27,6 +27,26 @@
         .tens-bg { background-color: #fee2e2; }
         .ones-bg { background-color: #dbeafe; }
 
+        /* Subtraction X Mark Styling */
+        .subtracted-mark {
+            position: relative;
+        }
+        .subtracted-mark::after {
+            content: '×';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+        .tens-subtracted::after {
+            font-size: 3rem;
+        }
+
         @media (max-width: 1024px) {
             .main-container {
                 flex-direction: column;
@@ -190,7 +210,7 @@
                 labelOnes: "ONES",
                 vizTens: "TENS",
                 vizOnes: "ONES",
-                vizInst: "Red bars are Tens, Blue circles are Ones.",
+                vizInst: "Add: Combined blocks. Sub: Crossed blocks are subtracted.",
                 correct: "Correct!",
                 incorrect: "Keep trying!",
                 modalTitle: "Well Done!",
@@ -209,7 +229,7 @@
                 labelOnes: "個位",
                 vizTens: "十位",
                 vizOnes: "個位",
-                vizInst: "紅色長條代表十，藍色圓圈代表一。",
+                vizInst: "加法：組合方塊。減法：打叉的方塊代表被減去。",
                 correct: "答對了！",
                 incorrect: "再試試看！",
                 modalTitle: "做得好！",
@@ -323,25 +343,40 @@
             const n2_tens = Math.floor(questionData.n2 / 10);
             const n2_ones = questionData.n2 % 10;
 
-            for (let i = 0; i < n1_tens; i++) createBlock(tensContainer, 'tens', 'n1');
+            // Render Tens
+            for (let i = 0; i < n1_tens; i++) {
+                // If subtraction, mark the last few blocks as subtracted
+                const isSubtracted = (currentOp === 'sub' && i >= (n1_tens - n2_tens));
+                createBlock(tensContainer, 'tens', 'n1', isSubtracted);
+            }
             if (currentOp === 'add') {
-                for (let i = 0; i < n2_tens; i++) createBlock(tensContainer, 'tens', 'n2');
+                for (let i = 0; i < n2_tens; i++) createBlock(tensContainer, 'tens', 'n2', false);
             }
 
-            for (let i = 0; i < n1_ones; i++) createBlock(onesContainer, 'ones', 'n1');
+            // Render Ones
+            for (let i = 0; i < n1_ones; i++) {
+                const isSubtracted = (currentOp === 'sub' && i >= (n1_ones - n2_ones));
+                createBlock(onesContainer, 'ones', 'n1', isSubtracted);
+            }
             if (currentOp === 'add') {
-                for (let i = 0; i < n2_ones; i++) createBlock(onesContainer, 'ones', 'n2');
+                for (let i = 0; i < n2_ones; i++) createBlock(onesContainer, 'ones', 'n2', false);
             }
         }
 
-        function createBlock(container, type, source) {
+        function createBlock(container, type, source, isSubtracted) {
             const div = document.createElement('div');
-            // 比例調整：ONES 為 w-6 h-6, TENS 寬度相同(w-6)，高度增加以體現10倍關係(h-48)
+            
+            let baseClasses = `w-6 shadow-sm relative transition-all duration-300 `;
+            
             if (type === 'tens') {
-                div.className = `w-6 h-48 rounded-md shadow-sm ${source === 'n1' ? 'bg-red-500' : 'bg-red-300 border-2 border-red-500'}`;
+                baseClasses += `h-48 rounded-md ${source === 'n1' ? 'bg-red-500' : 'bg-red-300 border-2 border-red-500'} `;
+                if (isSubtracted) baseClasses += `opacity-40 subtracted-mark tens-subtracted`;
             } else {
-                div.className = `w-6 h-6 rounded-full shadow-sm ${source === 'n1' ? 'bg-blue-500' : 'bg-blue-200 border-2 border-blue-500'}`;
+                baseClasses += `h-6 rounded-full ${source === 'n1' ? 'bg-blue-500' : 'bg-blue-200 border-2 border-blue-500'} `;
+                if (isSubtracted) baseClasses += `opacity-40 subtracted-mark`;
             }
+            
+            div.className = baseClasses;
             container.appendChild(div);
         }
 
