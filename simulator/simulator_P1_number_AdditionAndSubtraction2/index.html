@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Concept Simulator - 數學概念模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.0/lucide.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Quicksand:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Quicksand', 'Noto+Sans+TC', sans-serif;
+            background-color: #f0f7ff;
+        }
+
+        .place-value-box {
+            transition: all 0.3s ease;
+        }
+
+        .digit-card {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tens-color { color: #ef4444; }
+        .ones-color { color: #3b82f6; }
+        .tens-bg { background-color: #fee2e2; }
+        .ones-bg { background-color: #dbeafe; }
+
+        @media (max-width: 1024px) {
+            .main-container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <img src="logo.png" alt="Logo" class="h-10 w-auto" onerror="this.src='https://placehold.co/40x40?text=L'">
+            <h1 class="text-xl font-bold text-slate-800 hidden sm:block" id="app-title">Math Concept Simulator</h1>
+        </div>
+        
+        <div class="flex gap-2">
+            <button onclick="toggleLanguage()" class="px-4 py-2 rounded-full border border-slate-200 hover:bg-slate-50 transition flex items-center gap-2">
+                <i data-lucide="languages" class="w-4 h-4"></i>
+                <span id="lang-btn-text">中文</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 p-4 md:p-8 flex flex-col items-center">
+        <!-- Dashboard / Controls -->
+        <div class="w-full max-w-5xl bg-white rounded-3xl shadow-xl p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Operation Toggle -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-500 uppercase tracking-wider" id="label-op">Operation / 運算</label>
+                    <div class="flex p-1 bg-slate-100 rounded-xl">
+                        <button onclick="setOp('add')" id="btn-add" class="flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-bold">＋</button>
+                        <button onclick="setOp('sub')" id="btn-sub" class="flex-1 py-2 rounded-lg text-slate-500 font-bold hover:bg-white/50 transition">－</button>
+                    </div>
+                </div>
+
+                <!-- Level Toggle -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-500 uppercase tracking-wider" id="label-level">Level / 程度</label>
+                    <div class="flex p-1 bg-slate-100 rounded-xl">
+                        <button onclick="setLevel(1)" id="btn-lvl1" class="flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-bold">2D & 1D</button>
+                        <button onclick="setLevel(2)" id="btn-lvl2" class="flex-1 py-2 rounded-lg text-slate-500 font-bold hover:bg-white/50 transition">2D & 2D</button>
+                    </div>
+                </div>
+
+                <!-- New Question Button -->
+                <div class="flex items-end lg:col-span-2">
+                    <button onclick="generateQuestion()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                        <span id="btn-new">New Question / 出題</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulation Area -->
+        <div class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            
+            <!-- Vertical Calculation -->
+            <div class="bg-white rounded-3xl shadow-xl p-8 flex flex-col items-center">
+                <h2 class="text-lg font-bold text-slate-400 mb-8 uppercase tracking-widest" id="title-calculation">Vertical Form / 直式</h2>
+                
+                <div class="relative text-6xl md:text-8xl font-bold text-slate-700 space-y-4">
+                    <!-- Headings -->
+                    <div class="flex justify-end gap-12 text-sm text-slate-300 font-normal mb-2">
+                        <span id="label-tens">TENS</span>
+                        <span id="label-ones">ONES</span>
+                    </div>
+
+                    <!-- Number 1 -->
+                    <div class="flex justify-end gap-8">
+                        <span class="tens-color" id="num1-tens">2</span>
+                        <span class="ones-color" id="num1-ones">4</span>
+                    </div>
+
+                    <!-- Number 2 -->
+                    <div class="flex justify-end gap-8 relative border-b-8 border-slate-800 pb-4">
+                        <span class="absolute left-[-60px] top-0 text-slate-400" id="current-op-symbol">＋</span>
+                        <span class="tens-color" id="num2-tens">1</span>
+                        <span class="ones-color" id="num2-ones">2</span>
+                    </div>
+
+                    <!-- Result Inputs -->
+                    <div class="flex justify-end gap-8 pt-4">
+                        <input type="number" id="input-tens" placeholder="?" 
+                               class="w-20 md:w-28 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl focus:outline-none focus:border-blue-400 transition"
+                               oninput="checkAnswer()">
+                        <input type="number" id="input-ones" placeholder="?" 
+                               class="w-20 md:w-28 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl focus:outline-none focus:border-blue-400 transition"
+                               oninput="checkAnswer()">
+                    </div>
+                </div>
+
+                <div id="feedback" class="mt-8 h-12 flex items-center justify-center text-xl font-bold">
+                    <!-- Feedback text injection -->
+                </div>
+            </div>
+
+            <!-- Visual Block Representation -->
+            <div class="bg-white rounded-3xl shadow-xl p-8">
+                <h2 class="text-lg font-bold text-slate-400 mb-8 uppercase tracking-widest" id="title-visual">Visual Concept / 概念圖</h2>
+                
+                <div class="grid grid-cols-2 gap-4 min-h-[400px]">
+                    <!-- Tens Column -->
+                    <div class="tens-bg rounded-2xl p-4 flex flex-col items-center space-y-4">
+                        <div class="text-red-500 font-bold text-sm" id="viz-label-tens">TENS / 十位</div>
+                        <div id="blocks-tens" class="flex flex-wrap gap-2 justify-center content-start">
+                            <!-- JS will inject SVG blocks here -->
+                        </div>
+                    </div>
+
+                    <!-- Ones Column -->
+                    <div class="ones-bg rounded-2xl p-4 flex flex-col items-center space-y-4">
+                        <div class="text-blue-500 font-bold text-sm" id="viz-label-ones">ONES / 個位</div>
+                        <div id="blocks-ones" class="flex flex-wrap gap-2 justify-center content-start">
+                            <!-- JS will inject SVG blocks here -->
+                        </div>
+                    </div>
+                </div>
+
+                <p class="mt-6 text-slate-400 text-sm text-center italic" id="viz-instruction">
+                    Blue circles represent Ones, Red bars represent Tens.
+                </p>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Success Modal (Custom) -->
+    <div id="success-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center space-y-6 shadow-2xl scale-95 transition-transform duration-300">
+            <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
+                <i data-lucide="party-popper" class="w-10 h-10"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800" id="modal-title">Well Done!</h2>
+            <p class="text-slate-500" id="modal-msg">You got the correct answer!</p>
+            <button onclick="closeModal()" class="w-full py-4 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 transition">
+                <span id="modal-btn">Next Question / 下一題</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        let currentLang = 'en';
+        let currentOp = 'add';
+        let currentLevel = 1; // 1: 2D+1D, 2: 2D+2D
+        let questionData = { n1: 24, n2: 12 };
+
+        const translations = {
+            en: {
+                appTitle: "Math Concept Simulator",
+                langBtn: "中文",
+                labelOp: "Operation",
+                labelLevel: "Level",
+                btnNew: "New Question",
+                titleCalc: "Vertical Form",
+                titleVisual: "Visual Concept",
+                labelTens: "TENS",
+                labelOnes: "ONES",
+                vizTens: "TENS",
+                vizOnes: "ONES",
+                vizInst: "Red bars are Tens, Blue circles are Ones.",
+                correct: "Correct!",
+                incorrect: "Keep trying!",
+                modalTitle: "Well Done!",
+                modalMsg: "You got the correct answer!",
+                modalBtn: "Next Question"
+            },
+            zh: {
+                appTitle: "數學概念模擬器",
+                langBtn: "English",
+                labelOp: "運算類型",
+                labelLevel: "難度級別",
+                btnNew: "換一題",
+                titleCalc: "直式計算",
+                titleVisual: "概念模型",
+                labelTens: "十位",
+                labelOnes: "個位",
+                vizTens: "十位",
+                vizOnes: "個位",
+                vizInst: "紅色長條代表十，藍色圓圈代表一。",
+                correct: "答對了！",
+                incorrect: "再試試看！",
+                modalTitle: "做得好！",
+                modalMsg: "你成功計算出正確答案！",
+                modalBtn: "下一題"
+            }
+        };
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'zh' : 'en';
+            updateUI();
+        }
+
+        function updateUI() {
+            const t = translations[currentLang];
+            const elements = {
+                'app-title': t.appTitle,
+                'lang-btn-text': t.langBtn,
+                'label-op': t.labelOp,
+                'label-level': t.labelLevel,
+                'btn-new': t.btnNew,
+                'title-calculation': t.titleCalc,
+                'title-visual': t.titleVisual,
+                'label-tens': t.labelTens,
+                'label-ones': t.labelOnes,
+                'viz-label-tens': t.vizTens,
+                'viz-label-ones': t.vizOnes,
+                'viz-instruction': t.vizInst,
+                'modal-title': t.modalTitle,
+                'modal-msg': t.modalMsg,
+                'modal-btn': t.modalBtn
+            };
+
+            for (const [id, text] of Object.entries(elements)) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            }
+            
+            renderVisuals();
+        }
+
+        function setOp(op) {
+            currentOp = op;
+            document.getElementById('btn-add').className = op === 'add' ? 'flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-bold' : 'flex-1 py-2 rounded-lg text-slate-500 font-bold hover:bg-white/50 transition';
+            document.getElementById('btn-sub').className = op === 'sub' ? 'flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-bold' : 'flex-1 py-2 rounded-lg text-slate-500 font-bold hover:bg-white/50 transition';
+            document.getElementById('current-op-symbol').textContent = op === 'add' ? '＋' : '－';
+            generateQuestion();
+        }
+
+        function setLevel(lvl) {
+            currentLevel = lvl;
+            document.getElementById('btn-lvl1').className = lvl === 1 ? 'flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-bold' : 'flex-1 py-2 rounded-lg text-slate-500 font-bold hover:bg-white/50 transition';
+            document.getElementById('btn-lvl2').className = lvl === 2 ? 'flex-1 py-2 rounded-lg bg-white shadow-sm text-blue-600 font-bold' : 'flex-1 py-2 rounded-lg text-slate-500 font-bold hover:bg-white/50 transition';
+            generateQuestion();
+        }
+
+        function generateQuestion() {
+            let n1, n2;
+            
+            if (currentOp === 'add') {
+                let n1_ones = Math.floor(Math.random() * 9); 
+                let n1_tens = Math.floor(Math.random() * 8) + 1; 
+                let n2_ones = Math.floor(Math.random() * (10 - n1_ones));
+                let n2_tens = currentLevel === 2 ? Math.floor(Math.random() * (10 - n1_tens)) : 0;
+
+                n1 = n1_tens * 10 + n1_ones;
+                n2 = n2_tens * 10 + n2_ones;
+                if (n2 === 0) n2 = (currentLevel === 2) ? 10 : 1;
+            } else {
+                let n1_ones = Math.floor(Math.random() * 9) + 1; 
+                let n1_tens = Math.floor(Math.random() * 8) + 2; 
+                let n2_ones = Math.floor(Math.random() * (n1_ones + 1));
+                let n2_tens = currentLevel === 2 ? Math.floor(Math.random() * (n1_tens)) : 0;
+                if (currentLevel === 2 && n2_tens === 0) n2_tens = 1;
+
+                n1 = n1_tens * 10 + n1_ones;
+                n2 = n2_tens * 10 + n2_ones;
+                if (n1 === n2) n1 += 1;
+            }
+
+            questionData = { n1, n2 };
+            updateQuestionDisplay();
+        }
+
+        function updateQuestionDisplay() {
+            const { n1, n2 } = questionData;
+            document.getElementById('num1-tens').textContent = Math.floor(n1 / 10);
+            document.getElementById('num1-ones').textContent = n1 % 10;
+            
+            const n2Tens = Math.floor(n2 / 10);
+            document.getElementById('num2-tens').textContent = n2Tens === 0 ? '' : n2Tens;
+            document.getElementById('num2-ones').textContent = n2 % 10;
+
+            document.getElementById('input-tens').value = '';
+            document.getElementById('input-ones').value = '';
+            document.getElementById('feedback').textContent = '';
+            
+            renderVisuals();
+        }
+
+        function renderVisuals() {
+            const tensContainer = document.getElementById('blocks-tens');
+            const onesContainer = document.getElementById('blocks-ones');
+            if (!tensContainer || !onesContainer) return;
+            
+            tensContainer.innerHTML = '';
+            onesContainer.innerHTML = '';
+
+            const n1_tens = Math.floor(questionData.n1 / 10);
+            const n1_ones = questionData.n1 % 10;
+            const n2_tens = Math.floor(questionData.n2 / 10);
+            const n2_ones = questionData.n2 % 10;
+
+            for (let i = 0; i < n1_tens; i++) createBlock(tensContainer, 'tens', 'n1');
+            if (currentOp === 'add') {
+                for (let i = 0; i < n2_tens; i++) createBlock(tensContainer, 'tens', 'n2');
+            }
+
+            for (let i = 0; i < n1_ones; i++) createBlock(onesContainer, 'ones', 'n1');
+            if (currentOp === 'add') {
+                for (let i = 0; i < n2_ones; i++) createBlock(onesContainer, 'ones', 'n2');
+            }
+        }
+
+        function createBlock(container, type, source) {
+            const div = document.createElement('div');
+            // 比例調整：ONES 為 w-6 h-6, TENS 寬度相同(w-6)，高度增加以體現10倍關係(h-48)
+            if (type === 'tens') {
+                div.className = `w-6 h-48 rounded-md shadow-sm ${source === 'n1' ? 'bg-red-500' : 'bg-red-300 border-2 border-red-500'}`;
+            } else {
+                div.className = `w-6 h-6 rounded-full shadow-sm ${source === 'n1' ? 'bg-blue-500' : 'bg-blue-200 border-2 border-blue-500'}`;
+            }
+            container.appendChild(div);
+        }
+
+        function checkAnswer() {
+            const userTens = parseInt(document.getElementById('input-tens').value);
+            const userOnes = parseInt(document.getElementById('input-ones').value);
+
+            if (isNaN(userTens) || isNaN(userOnes)) return;
+
+            const expected = currentOp === 'add' 
+                ? questionData.n1 + questionData.n2 
+                : questionData.n1 - questionData.n2;
+            
+            const userTotal = userTens * 10 + userOnes;
+            const feedback = document.getElementById('feedback');
+            const t = translations[currentLang];
+
+            if (userTotal === expected) {
+                feedback.textContent = t.correct;
+                feedback.className = "mt-8 h-12 flex items-center justify-center text-xl font-bold text-green-600";
+                setTimeout(() => openModal(), 400);
+            } else {
+                feedback.textContent = t.incorrect;
+                feedback.className = "mt-8 h-12 flex items-center justify-center text-xl font-bold text-red-400";
+            }
+        }
+
+        function openModal() {
+            const modal = document.getElementById('success-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.firstElementChild.classList.remove('scale-95');
+                modal.firstElementChild.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('success-modal');
+            modal.firstElementChild.classList.add('scale-95');
+            modal.firstElementChild.classList.remove('scale-100');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                generateQuestion();
+            }, 200);
+        }
+
+        window.onload = () => {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            updateUI();
+            generateQuestion();
+        };
+
+    </script>
+</body>
+</html>
