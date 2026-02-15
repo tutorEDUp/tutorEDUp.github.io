@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>平面圖形探索家 | Shape Explorer</title>
+    
+    <!-- 引入 Tailwind CSS 進行快速排版與響應式設計 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Fredoka', 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff; /* 淺藍背景 */
+            -webkit-tap-highlight-color: transparent; /* 移除移動端點擊高亮 */
+        }
+
+        /* 自定義動畫 */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .shape-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .btn-pop:active {
+            transform: scale(0.95);
+        }
+
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 隱藏捲軸但保留功能 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800">
+
+    <!-- 頁首導航 -->
+    <header class="bg-white p-4 shadow-md z-10 flex justify-between items-center h-20 shrink-0">
+        <div class="flex items-center gap-4">
+            <!-- Logo 區域: 如果 logo.png 不存在，顯示替代文字 -->
+            <div class="w-12 h-12 md:w-16 md:h-16 relative flex items-center justify-center bg-blue-100 rounded-lg overflow-hidden border-2 border-blue-200">
+                <img src="logo.png" alt="Logo" class="w-full h-full object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="absolute inset-0 hidden items-center justify-center text-blue-500 font-bold text-xs text-center p-1" style="display: none;">
+                    LOGO
+                </div>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-blue-600 tracking-wide" id="app-title">平面圖形探索家</h1>
+                <p class="text-xs md:text-sm text-gray-500 hidden md:block" id="app-subtitle">直觀認識三角形、四邊形與圓形</p>
+            </div>
+        </div>
+        
+        <!-- 語言切換按鈕 -->
+        <button onclick="toggleLanguage()" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-2 rounded-full font-bold transition-colors shadow-sm flex items-center gap-2">
+            <span class="text-xl">🌐</span>
+            <span id="lang-btn-text">English</span>
+        </button>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main id="main-container" class="flex-1 relative overflow-y-auto no-scrollbar p-4 md:p-8 flex flex-col items-center justify-start">
+        <!-- 動態內容將由 JS 渲染 -->
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-white p-2 text-center text-gray-400 text-xs shrink-0">
+        © 2024 Shape Simulator
+    </footer>
+
+    <!-- JavaScript 邏輯 -->
+    <script>
+        // --- 1. 資料設定 (Data) ---
+        
+        const state = {
+            lang: 'zh', // 'zh' or 'en'
+            currentView: 'home', // 'home', 'learn', 'game'
+            score: 0,
+            gameTargetType: null, // 遊戲中當前要找的圖形類型
+            isGameActive: false
+        };
+
+        const translations = {
+            zh: {
+                title: "平面圖形探索家",
+                subtitle: "直觀認識三角形、四邊形與圓形",
+                langBtn: "English",
+                menuLearn: "圖形實驗室",
+                menuLearnDesc: "點擊圖形，了解它們的特徵與名稱。",
+                menuGame: "圖形大挑戰",
+                menuGameDesc: "測試你的眼力，找出正確的圖形！",
+                back: "返回主選單",
+                properties: "特徵：",
+                sides: "邊",
+                corners: "角",
+                noCorners: "沒有角",
+                curvedLine: "一條曲線",
+                gamePrompt: "請找出所有的：",
+                score: "得分",
+                correct: "答對了！",
+                wrong: "再試一次！",
+                restart: "再來一局",
+                shapes: {
+                    triangle: "三角形",
+                    circle: "圓形",
+                    square: "正方形",
+                    rectangle: "長方形",
+                    quadrilateral: "四邊形"
+                },
+                descriptions: {
+                    triangle: "我有 3 條直直的邊和 3 個尖尖的角。",
+                    circle: "我圓滾滾的，沒有尖尖的角，只有一條彎彎的曲線。",
+                    square: "我有 4 條一樣長的邊和 4 個直角。",
+                    rectangle: "我有 4 條邊，對面的邊一樣長，還有 4 個直角。",
+                    quadrilateral: "我有 4 條邊和 4 個角，形狀千變萬化。"
+                }
+            },
+            en: {
+                title: "Shape Explorer",
+                subtitle: "Learn about Triangles, Quadrilaterals, and Circles",
+                langBtn: "中文",
+                menuLearn: "Shape Lab",
+                menuLearnDesc: "Tap shapes to learn their names and features.",
+                menuGame: "Shape Challenge",
+                menuGameDesc: "Test your skills! Find and sort the shapes.",
+                back: "Main Menu",
+                properties: "Properties:",
+                sides: "Sides",
+                corners: "Corners",
+                noCorners: "No corners",
+                curvedLine: "1 curved line",
+                gamePrompt: "Find all the:",
+                score: "Score",
+                correct: "Correct!",
+                wrong: "Try Again!",
+                restart: "Play Again",
+                shapes: {
+                    triangle: "Triangle",
+                    circle: "Circle",
+                    square: "Square",
+                    rectangle: "Rectangle",
+                    quadrilateral: "Quadrilateral"
+                },
+                descriptions: {
+                    triangle: "I have 3 straight sides and 3 corners.",
+                    circle: "I am round. I have no corners, just 1 curved line.",
+                    square: "I have 4 equal sides and 4 square corners.",
+                    rectangle: "I have 4 sides (opposites are equal) and 4 corners.",
+                    quadrilateral: "I am any shape with 4 sides and 4 corners."
+                }
+            }
+        };
+
+        // 圖形定義 (SVG Paths)
+        const shapesData = [
+            {
+                id: 'triangle',
+                type: 'triangle',
+                color: 'text-yellow-400',
+                fill: 'fill-yellow-400',
+                bg: 'bg-yellow-100',
+                viewBox: "0 0 100 100",
+                path: '<polygon points="50,15 90,85 10,85" />',
+                prop: { sides: 3, corners: 3 }
+            },
+            {
+                id: 'circle',
+                type: 'circle',
+                color: 'text-red-400',
+                fill: 'fill-red-400',
+                bg: 'bg-red-100',
+                viewBox: "0 0 100 100",
+                path: '<circle cx="50" cy="50" r="40" />',
+                prop: { sides: 0, corners: 0 }
+            },
+            {
+                id: 'square',
+                type: 'quadrilateral', // 廣義分類
+                subType: 'square',    // 狹義名稱
+                color: 'text-blue-400',
+                fill: 'fill-blue-400',
+                bg: 'bg-blue-100',
+                viewBox: "0 0 100 100",
+                path: '<rect x="15" y="15" width="70" height="70" />',
+                prop: { sides: 4, corners: 4 }
+            },
+            {
+                id: 'rectangle',
+                type: 'quadrilateral',
+                subType: 'rectangle',
+                color: 'text-green-400',
+                fill: 'fill-green-400',
+                bg: 'bg-green-100',
+                viewBox: "0 0 100 100",
+                path: '<rect x="10" y="25" width="80" height="50" />',
+                prop: { sides: 4, corners: 4 }
+            }
+        ];
+
+        // --- 2. 核心功能 (Core Functions) ---
+
+        function init() {
+            renderView();
+        }
+
+        function toggleLanguage() {
+            state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            updateStaticText();
+            renderView(); // 重新渲染當前視圖以更新文字
+        }
+
+        function updateStaticText() {
+            const t = translations[state.lang];
+            document.getElementById('app-title').innerText = t.title;
+            document.getElementById('app-subtitle').innerText = t.subtitle;
+            document.getElementById('lang-btn-text').innerText = t.langBtn;
+        }
+
+        function navigateTo(view) {
+            state.currentView = view;
+            renderView();
+        }
+
+        function renderView() {
+            const container = document.getElementById('main-container');
+            container.innerHTML = ''; // 清空內容
+
+            if (state.currentView === 'home') {
+                renderHome(container);
+            } else if (state.currentView === 'learn') {
+                renderLearn(container);
+            } else if (state.currentView === 'game') {
+                renderGame(container);
+            }
+        }
+
+        // --- 3. 畫面渲染 (Renderers) ---
+
+        // 主選單
+        function renderHome(container) {
+            const t = translations[state.lang];
+            
+            const menuHtml = `
+                <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 mt-4 md:mt-10">
+                    <!-- 學習模式卡片 -->
+                    <div onclick="navigateTo('learn')" class="cursor-pointer group relative bg-white rounded-3xl p-6 md:p-10 card-shadow hover:scale-105 transition-all duration-300 border-b-8 border-yellow-200 active:border-b-0 active:translate-y-2">
+                        <div class="absolute top-4 right-4 text-6xl opacity-20 group-hover:opacity-40 transition-opacity">📖</div>
+                        <div class="flex justify-center mb-6">
+                            <svg class="w-32 h-32 drop-shadow-lg shape-float" viewBox="0 0 100 100">
+                                <circle cx="30" cy="30" r="20" class="fill-red-400" opacity="0.8"/>
+                                <rect x="40" y="40" width="40" height="40" class="fill-blue-400" opacity="0.8"/>
+                                <polygon points="80,20 95,50 65,50" class="fill-yellow-400" opacity="0.8"/>
+                            </svg>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2 text-center group-hover:text-yellow-600 transition-colors">${t.menuLearn}</h2>
+                        <p class="text-gray-500 text-center text-lg">${t.menuLearnDesc}</p>
+                    </div>
+
+                    <!-- 遊戲模式卡片 -->
+                    <div onclick="navigateTo('game')" class="cursor-pointer group relative bg-white rounded-3xl p-6 md:p-10 card-shadow hover:scale-105 transition-all duration-300 border-b-8 border-green-200 active:border-b-0 active:translate-y-2">
+                        <div class="absolute top-4 right-4 text-6xl opacity-20 group-hover:opacity-40 transition-opacity">🎮</div>
+                        <div class="flex justify-center mb-6">
+                            <svg class="w-32 h-32 drop-shadow-lg shape-float" viewBox="0 0 100 100" style="animation-delay: 1s;">
+                                <path d="M20,50 L50,20 L80,50 L50,80 Z" class="fill-green-400" opacity="0.8"/>
+                                <circle cx="80" cy="20" r="10" class="fill-purple-400" opacity="0.6"/>
+                                <rect x="10" y="70" width="20" height="20" class="fill-orange-400" opacity="0.6"/>
+                            </svg>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2 text-center group-hover:text-green-600 transition-colors">${t.menuGame}</h2>
+                        <p class="text-gray-500 text-center text-lg">${t.menuGameDesc}</p>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = menuHtml;
+        }
+
+        // 學習模式
+        function renderLearn(container) {
+            const t = translations[state.lang];
+            
+            // 建立導航列
+            const nav = document.createElement('div');
+            nav.className = "w-full max-w-5xl flex justify-start mb-4";
+            nav.innerHTML = `<button onclick="navigateTo('home')" class="text-gray-500 hover:text-blue-600 font-bold flex items-center gap-1 transition-colors"><span class="text-2xl">⬅</span> ${t.back}</button>`;
+            container.appendChild(nav);
+
+            // 佈局容器：左側選單，右側展示
+            const layout = document.createElement('div');
+            layout.className = "w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-180px)]";
+            
+            // 1. 左側圖形選擇器
+            const sidebar = document.createElement('div');
+            sidebar.className = "bg-white rounded-2xl p-4 shadow-sm overflow-y-auto flex md:flex-col gap-2 md:gap-4 no-scrollbar";
+            
+            shapesData.forEach((shape, index) => {
+                const btn = document.createElement('div');
+                btn.className = `cursor-pointer p-2 rounded-xl border-2 transition-all hover:bg-gray-50 flex flex-col items-center justify-center shrink-0 w-20 md:w-auto h-20 md:h-auto ${index === 0 ? 'border-blue-400 bg-blue-50' : 'border-transparent'}`;
+                btn.id = `learn-btn-${shape.id}`;
+                btn.innerHTML = `
+                    <svg viewBox="0 0 100 100" class="w-10 h-10 md:w-16 md:h-16 ${shape.fill} drop-shadow-sm">
+                        ${shape.path}
+                    </svg>
+                `;
+                btn.onclick = () => selectLearnShape(shape);
+                sidebar.appendChild(btn);
+            });
+            layout.appendChild(sidebar);
+
+            // 2. 右側展示區 (預設顯示第一個圖形)
+            const displayArea = document.createElement('div');
+            displayArea.id = "learn-display-area";
+            displayArea.className = "md:col-span-2 bg-white rounded-3xl shadow-lg p-6 md:p-12 flex flex-col items-center justify-center text-center relative overflow-hidden";
+            layout.appendChild(displayArea);
+
+            container.appendChild(layout);
+
+            // 初始選中第一個
+            selectLearnShape(shapesData[0]);
+        }
+
+        function selectLearnShape(shape) {
+            // 更新 Sidebar 樣式
+            shapesData.forEach(s => {
+                const btn = document.getElementById(`learn-btn-${s.id}`);
+                if (btn) {
+                    if (s.id === shape.id) {
+                        btn.classList.add('border-blue-400', 'bg-blue-50', 'border-2');
+                        btn.classList.remove('border-transparent');
+                    } else {
+                        btn.classList.remove('border-blue-400', 'bg-blue-50', 'border-2');
+                        btn.classList.add('border-transparent');
+                    }
+                }
+            });
+
+            // 更新展示區
+            const t = translations[state.lang];
+            const display = document.getElementById('learn-display-area');
+            const shapeName = t.shapes[shape.subType || shape.type];
+            const desc = t.descriptions[shape.subType || shape.type];
+            
+            // 計算屬性顯示
+            let propText = "";
+            if (shape.prop.corners > 0) {
+                propText = `
+                    <div class="flex gap-8 mt-4 text-lg md:text-xl font-bold text-gray-600">
+                        <div class="bg-gray-100 px-4 py-2 rounded-lg">📏 ${shape.prop.sides} ${t.sides}</div>
+                        <div class="bg-gray-100 px-4 py-2 rounded-lg">📐 ${shape.prop.corners} ${t.corners}</div>
+                    </div>
+                `;
+            } else {
+                propText = `
+                     <div class="flex gap-8 mt-4 text-lg md:text-xl font-bold text-gray-600">
+                        <div class="bg-gray-100 px-4 py-2 rounded-lg">⭕ ${t.curvedLine}</div>
+                        <div class="bg-gray-100 px-4 py-2 rounded-lg">🚫 ${t.noCorners}</div>
+                    </div>
+                `;
+            }
+
+            // 動畫重新觸發
+            display.innerHTML = `
+                <div class="absolute inset-0 opacity-10 ${shape.bg}"></div> <!-- 背景色塊 -->
+                
+                <div class="relative z-10 w-full flex flex-col items-center animate-[pop_0.5s_ease-out]">
+                    <svg viewBox="0 0 100 100" class="w-48 h-48 md:w-64 md:h-64 ${shape.fill} drop-shadow-2xl shape-float cursor-pointer hover:scale-110 transition-transform duration-300">
+                        ${shape.path}
+                    </svg>
+                    
+                    <h2 class="text-4xl md:text-5xl font-bold mt-8 mb-2 ${shape.color.replace('text', 'text')}">${shapeName}</h2>
+                    <p class="text-gray-500 text-lg md:text-xl max-w-md">${desc}</p>
+                    
+                    ${propText}
+                </div>
+            `;
+        }
+
+        // 遊戲模式
+        function renderGame(container) {
+            const t = translations[state.lang];
+            state.score = 0;
+            
+            // 頂部
+            const header = document.createElement('div');
+            header.className = "w-full max-w-5xl flex justify-between items-center mb-6";
+            header.innerHTML = `
+                <button onclick="navigateTo('home')" class="text-gray-500 hover:text-blue-600 font-bold text-lg">⬅ ${t.back}</button>
+                <div class="text-2xl font-bold text-blue-600 bg-white px-6 py-2 rounded-full shadow-sm">
+                    ${t.score}: <span id="game-score">0</span>
+                </div>
+            `;
+            container.appendChild(header);
+
+            // 題目區
+            const questionBox = document.createElement('div');
+            questionBox.id = 'question-box';
+            questionBox.className = "text-center mb-8";
+            container.appendChild(questionBox);
+
+            // 遊戲區
+            const gameBoard = document.createElement('div');
+            gameBoard.id = 'game-board';
+            gameBoard.className = "grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl";
+            container.appendChild(gameBoard);
+
+            // 結果反饋區 (Toast)
+            const feedback = document.createElement('div');
+            feedback.id = 'game-feedback';
+            feedback.className = "fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full text-xl font-bold opacity-0 transition-opacity pointer-events-none z-50 shadow-xl";
+            document.body.appendChild(feedback);
+
+            startNewRound();
+        }
+
+        function startNewRound() {
+            const t = translations[state.lang];
+            
+            // 1. 決定要找什麼類型 (Triangle, Circle, Quadrilateral)
+            const types = ['triangle', 'circle', 'quadrilateral'];
+            const targetType = types[Math.floor(Math.random() * types.length)];
+            state.gameTargetType = targetType;
+            
+            const targetName = t.shapes[targetType];
+
+            // 更新題目
+            const qBox = document.getElementById('question-box');
+            qBox.innerHTML = `
+                <h3 class="text-xl text-gray-500 mb-1">${t.gamePrompt}</h3>
+                <h2 class="text-4xl font-bold text-indigo-600 animate-pulse">${targetName}</h2>
+            `;
+
+            // 2. 產生選項 (混合正確和錯誤的圖形)
+            const board = document.getElementById('game-board');
+            board.innerHTML = '';
+
+            let items = [];
+            
+            // 至少放 2-3 個正確答案
+            const correctShapeBase = shapesData.filter(s => s.type === targetType);
+            for(let i=0; i<3; i++) {
+                // 隨機選一個該類別的變體 (如果是四邊形，可能是正方形或長方形)
+                const s = correctShapeBase[Math.floor(Math.random() * correctShapeBase.length)];
+                items.push({ ...s, isTarget: true, uniqueId: Math.random() });
+            }
+
+            // 放 3-5 個錯誤答案
+            const wrongShapeBase = shapesData.filter(s => s.type !== targetType);
+            for(let i=0; i<4; i++) {
+                const s = wrongShapeBase[Math.floor(Math.random() * wrongShapeBase.length)];
+                items.push({ ...s, isTarget: false, uniqueId: Math.random() });
+            }
+
+            // 打亂陣列
+            items.sort(() => Math.random() - 0.5);
+
+            // 渲染卡片
+            items.forEach(item => {
+                const card = document.createElement('div');
+                // 隨機旋轉一點點角度，增加趣味性
+                const rotate = Math.floor(Math.random() * 20) - 10;
+                
+                card.className = "btn-pop aspect-square bg-white rounded-2xl shadow-md border-b-4 border-gray-200 cursor-pointer flex items-center justify-center hover:bg-gray-50 active:border-b-0 active:translate-y-1 transition-all";
+                card.innerHTML = `
+                    <svg viewBox="0 0 100 100" class="w-2/3 h-2/3 ${item.fill}" style="transform: rotate(${rotate}deg)">
+                        ${item.path}
+                    </svg>
+                `;
+                
+                card.onclick = (e) => handleGameClick(e.currentTarget, item);
+                board.appendChild(card);
+            });
+        }
+
+        function handleGameClick(element, item) {
+            const t = translations[state.lang];
+            const feedback = document.getElementById('game-feedback');
+
+            if (element.classList.contains('opacity-0')) return; // 已經點過了
+
+            if (item.isTarget) {
+                // 答對
+                state.score += 10;
+                document.getElementById('game-score').innerText = state.score;
+                
+                // 動畫效果
+                element.classList.add('scale-0', 'opacity-0'); // 消失
+                
+                showFeedback(t.correct, 'bg-green-500');
+                
+                // 檢查是否還有剩餘目標
+                const board = document.getElementById('game-board');
+                const remaining = Array.from(board.children).filter(child => !child.classList.contains('opacity-0'));
+                
+                // 這裡其實應該檢查 items 數據，但簡化起見，如果點了 3 個正確的就換下一輪
+                // 為了更好的體驗，我們檢查是否已經找出所有正確答案
+                // 因為邏輯在前端是動態生成的，這裡簡單判斷：如果該輪答對一定數量，進入下一輪
+                
+                // 簡單邏輯：點擊正確就繼續，直到畫面上沒有正確答案（太複雜），
+                // 這裡採用：每答對一次，隨機決定是否換新一輪 (33% 機率) 或者 答對三個強制換
+                
+                if (state.score % 30 === 0) {
+                     setTimeout(startNewRound, 800);
+                }
+
+            } else {
+                // 答錯
+                element.classList.add('bg-red-100', 'shake'); // 搖晃或變紅
+                setTimeout(() => element.classList.remove('bg-red-100', 'shake'), 500);
+                showFeedback(t.wrong, 'bg-red-500');
+            }
+        }
+
+        function showFeedback(text, colorClass) {
+            const feedback = document.getElementById('game-feedback');
+            feedback.innerText = text;
+            feedback.className = `fixed bottom-10 left-1/2 transform -translate-x-1/2 text-white px-8 py-4 rounded-2xl text-xl font-bold transition-opacity z-50 shadow-xl ${colorClass}`;
+            feedback.style.opacity = '1';
+            
+            setTimeout(() => {
+                feedback.style.opacity = '0';
+            }, 1000);
+        }
+
+        // 初始化
+        init();
+
+    </script>
+</body>
+</html>
