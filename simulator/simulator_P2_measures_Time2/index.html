@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時間 (二) Time (II) - 學習模擬器</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Nunito:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Nunito', 'Noto Sans TC', sans-serif;
+            background-color: #f0fdf4; /* Light Green bg */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Custom Scrollbar for panel */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        .clock-canvas {
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .tab-btn.active {
+            background-color: #22c55e; /* Green-500 */
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.4);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md z-10 flex-none">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <!-- Logo Placeholder -->
+                <div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                    <img src="logo.png" alt="Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'" class="w-full h-full object-contain">
+                    <span style="display:none" class="text-xs text-gray-400">Logo</span>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-green-700 leading-tight">
+                        <span data-i18n="app_title">時間 (二)</span>
+                    </h1>
+                    <p class="text-xs text-gray-500 hidden sm:block" data-i18n="app_subtitle">Time (II) Learning Simulator</p>
+                </div>
+            </div>
+
+            <button onclick="toggleLanguage()" class="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-full transition-colors text-sm font-medium">
+                <i data-lucide="languages" class="w-4 h-4"></i>
+                <span id="lang-display">English</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden max-w-7xl mx-auto w-full">
+        
+        <!-- Sidebar Navigation -->
+        <nav class="bg-white/80 backdrop-blur-md md:w-64 flex-none border-r border-gray-200 p-4 flex md:flex-col gap-2 overflow-x-auto md:overflow-visible">
+            <button onclick="switchTab('read')" id="btn-read" class="tab-btn active flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all whitespace-nowrap md:whitespace-normal flex-shrink-0 md:flex-shrink">
+                <i data-lucide="clock" class="w-5 h-5"></i>
+                <div>
+                    <div class="font-medium" data-i18n="menu_read">報讀時間</div>
+                    <div class="text-xs opacity-80" data-i18n="menu_read_sub">Telling Time</div>
+                </div>
+            </button>
+
+            <button onclick="switchTab('relation')" id="btn-relation" class="tab-btn flex items-center gap-3 px-4 py-3 rounded-xl text-left text-gray-600 hover:bg-gray-50 transition-all whitespace-nowrap md:whitespace-normal flex-shrink-0 md:flex-shrink">
+                <i data-lucide="arrow-left-right" class="w-5 h-5"></i>
+                <div>
+                    <div class="font-medium" data-i18n="menu_relation">小時與分</div>
+                    <div class="text-xs opacity-80" data-i18n="menu_relation_sub">Hours & Minutes</div>
+                </div>
+            </button>
+
+            <button onclick="switchTab('interval')" id="btn-interval" class="tab-btn flex items-center gap-3 px-4 py-3 rounded-xl text-left text-gray-600 hover:bg-gray-50 transition-all whitespace-nowrap md:whitespace-normal flex-shrink-0 md:flex-shrink">
+                <i data-lucide="timer" class="w-5 h-5"></i>
+                <div>
+                    <div class="font-medium" data-i18n="menu_interval">時間間隔</div>
+                    <div class="text-xs opacity-80" data-i18n="menu_interval_sub">Time Intervals</div>
+                </div>
+            </button>
+        </nav>
+
+        <!-- Dynamic Content Area -->
+        <main class="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50 relative">
+            
+            <!-- SECTION 1: Reading Time -->
+            <div id="section-read" class="max-w-3xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <span class="bg-green-100 text-green-700 p-2 rounded-lg"><i data-lucide="clock"></i></span>
+                        <span data-i18n="read_title">認識幾時幾分</span>
+                    </h2>
+                    <p class="text-gray-500 mb-6" data-i18n="read_desc">觀察時鐘，練習說出正確的時間。</p>
+
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16">
+                        <!-- Canvas Clock -->
+                        <div class="relative">
+                            <canvas id="clock-read" width="300" height="300" class="clock-canvas border-4 border-slate-200"></canvas>
+                            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div class="w-3 h-3 bg-red-500 rounded-full z-10"></div>
+                            </div>
+                        </div>
+
+                        <!-- Controls -->
+                        <div class="flex flex-col items-center gap-6 w-full md:w-auto">
+                            <div class="bg-slate-900 text-green-400 font-mono text-4xl px-8 py-4 rounded-xl shadow-inner tracking-widest border-2 border-slate-700">
+                                <span id="digital-time">10:10</span>
+                            </div>
+
+                            <div class="w-full bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-500 mb-1" data-i18n="label_hour">時 (Hour)</label>
+                                    <input type="range" id="slider-hour" min="1" max="12" value="10" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-500 mb-1" data-i18n="label_minute">分 (Minute)</label>
+                                    <input type="range" id="slider-minute" min="0" max="59" value="10" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-pink-600">
+                                </div>
+                            </div>
+
+                            <button onclick="setRandomTime()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-xl shadow-lg shadow-indigo-200 active:transform active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <i data-lucide="shuffle" class="w-4 h-4"></i>
+                                <span data-i18n="btn_random">隨機出題</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Hours and Minutes Relationship -->
+            <div id="section-relation" class="hidden max-w-3xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <span class="bg-blue-100 text-blue-700 p-2 rounded-lg"><i data-lucide="refresh-cw"></i></span>
+                        <span data-i18n="relation_title">小時與分的關係</span>
+                    </h2>
+                    <p class="text-gray-500 mb-6" data-i18n="relation_desc">觀察分針走一圈，時針會移動多少？</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                        <div class="flex flex-col items-center">
+                            <canvas id="clock-relation" width="280" height="280" class="clock-canvas border-4 border-blue-100"></canvas>
+                        </div>
+
+                        <div class="space-y-6">
+                            <div class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg">
+                                <p class="text-lg font-bold text-amber-900 mb-1" data-i18n="fact_title">重要概念：</p>
+                                <ul class="list-disc pl-5 text-amber-800 space-y-1">
+                                    <li data-i18n="fact_1">1 小時 = 60 分鐘</li>
+                                    <li data-i18n="fact_2">分針走一圈 (60小格) = 時針走一大格</li>
+                                </ul>
+                            </div>
+
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-blue-600 mb-2">
+                                    <span id="relation-passed-min">0</span> 
+                                    <span class="text-base font-normal text-gray-500" data-i18n="mins_passed">分鐘過去了</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
+                                    <div id="progress-bar" class="bg-blue-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2 justify-center">
+                                <button onclick="animateTime(1)" class="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors">
+                                    +1 <span data-i18n="unit_min">分</span>
+                                </button>
+                                <button onclick="animateTime(5)" class="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-xl transition-colors">
+                                    +5 <span data-i18n="unit_min">分</span>
+                                </button>
+                                <button onclick="animateTime(60)" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl shadow-lg shadow-blue-200 transition-colors">
+                                    +60 <span data-i18n="unit_min">分</span>
+                                </button>
+                                <button onclick="resetRelation()" class="px-4 text-gray-400 hover:text-red-500">
+                                    <i data-lucide="rotate-ccw"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 3: Time Intervals -->
+            <div id="section-interval" class="hidden max-w-4xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <span class="bg-purple-100 text-purple-700 p-2 rounded-lg"><i data-lucide="hourglass"></i></span>
+                        <span data-i18n="interval_title">計算時間間隔</span>
+                    </h2>
+                    <p class="text-gray-500 mb-6" data-i18n="interval_desc">算出開始時間和結束時間經過了多久。</p>
+
+                    <!-- Challenge Area -->
+                    <div class="bg-slate-50 rounded-2xl p-6 border border-slate-200 relative overflow-hidden">
+                        
+                        <!-- Clocks Row -->
+                        <div class="flex flex-col md:flex-row items-center justify-around gap-8 mb-8">
+                            <!-- Start Clock -->
+                            <div class="text-center">
+                                <div class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2" data-i18n="label_start">開始時間</div>
+                                <canvas id="clock-start" width="180" height="180" class="bg-white rounded-full shadow-md border-2 border-green-200"></canvas>
+                                <div id="text-start" class="mt-2 font-mono text-xl text-green-700 font-bold bg-green-50 px-3 py-1 rounded-lg inline-block">--:--</div>
+                            </div>
+
+                            <!-- Arrow -->
+                            <div class="hidden md:flex flex-col items-center justify-center text-gray-300">
+                                <i data-lucide="move-right" class="w-12 h-12"></i>
+                                <span class="text-xs font-bold" data-i18n="label_elapsed">經過</span>
+                            </div>
+
+                            <!-- End Clock -->
+                            <div class="text-center">
+                                <div class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2" data-i18n="label_end">結束時間</div>
+                                <canvas id="clock-end" width="180" height="180" class="bg-white rounded-full shadow-md border-2 border-red-200"></canvas>
+                                <div id="text-end" class="mt-2 font-mono text-xl text-red-700 font-bold bg-red-50 px-3 py-1 rounded-lg inline-block">--:--</div>
+                            </div>
+                        </div>
+
+                        <!-- Answer Input -->
+                        <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg border border-purple-100 text-center relative z-10">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4" data-i18n="q_how_long">請問經過了多久？</h3>
+                            
+                            <div class="flex items-center justify-center gap-2 mb-6">
+                                <div class="flex flex-col w-20">
+                                    <input type="number" id="ans-hour" min="0" max="12" class="text-center text-2xl font-bold p-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none" placeholder="0">
+                                    <span class="text-xs text-gray-500 mt-1" data-i18n="unit_hr">小時</span>
+                                </div>
+                                <span class="text-2xl font-bold text-gray-300">:</span>
+                                <div class="flex flex-col w-20">
+                                    <input type="number" id="ans-min" min="0" max="59" class="text-center text-2xl font-bold p-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none" placeholder="0">
+                                    <span class="text-xs text-gray-500 mt-1" data-i18n="unit_min">分鐘</span>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-3 mb-4">
+                                <button onclick="checkAnswer()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-transform active:scale-95" data-i18n="btn_check">
+                                    檢查答案
+                                </button>
+                                <button onclick="newIntervalQuestion()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 px-4 rounded-xl transition-colors" data-i18n="btn_next">
+                                    下一題
+                                </button>
+                            </div>
+                            
+                            <!-- Step Demonstration Button -->
+                             <button onclick="toggleSteps()" class="w-full border-2 border-purple-100 text-purple-600 hover:bg-purple-50 font-medium py-2 px-4 rounded-xl transition-colors text-sm flex items-center justify-center gap-2">
+                                <i data-lucide="calculator" class="w-4 h-4"></i>
+                                <span data-i18n="btn_steps">演示計算步驟</span>
+                            </button>
+
+                            <!-- Feedback Message -->
+                            <div id="feedback-msg" class="mt-4 font-bold min-h-[1.5rem] transition-all"></div>
+                        </div>
+
+                        <!-- Step By Step Visualization (Hidden by default) -->
+                        <div id="steps-container" class="hidden mt-6 bg-white p-6 rounded-xl border-2 border-yellow-200 shadow-sm max-w-md mx-auto transition-all">
+                            <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                                <h4 class="font-bold text-yellow-700 flex items-center gap-2">
+                                    <i data-lucide="lightbulb" class="w-5 h-5"></i>
+                                    <span data-i18n="step_title">計算步驟</span>
+                                </h4>
+                                <button onclick="toggleSteps()" class="text-gray-400 hover:text-gray-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                            </div>
+
+                            <!-- Steps Content -->
+                            <div class="flex flex-col items-center">
+                                <p id="step-instruction" class="text-center text-gray-700 mb-6 font-medium min-h-[3rem]"></p>
+                                
+                                <!-- Vertical Math Visualization -->
+                                <div class="font-mono text-3xl text-right inline-block relative bg-gray-50 p-6 rounded-lg border border-gray-200">
+                                    <!-- Borrowing Indicators (Top) -->
+                                    <div class="absolute top-2 left-6 text-red-500 text-xl font-bold opacity-0 transition-opacity" id="borrow-h"></div>
+                                    <div class="absolute top-2 right-6 text-red-500 text-xl font-bold opacity-0 transition-opacity" id="borrow-m"></div>
+
+                                    <!-- Main Equation -->
+                                    <div class="grid grid-cols-[1fr_auto_1fr] gap-x-2 items-center mb-1">
+                                        <div id="math-end-h" class="relative px-2">--</div>
+                                        <div>:</div>
+                                        <div id="math-end-m" class="relative px-2">--</div>
+                                    </div>
+                                    <div class="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 items-center relative">
+                                        <div class="absolute -left-4 font-bold text-gray-400">-</div>
+                                        <div id="math-start-h" class="col-start-2 px-2 text-gray-600">--</div>
+                                        <div class="text-gray-400">:</div>
+                                        <div id="math-start-m" class="px-2 text-gray-600">--</div>
+                                    </div>
+                                    <div class="border-t-4 border-gray-300 my-2 w-full"></div>
+                                    <div class="grid grid-cols-[1fr_auto_1fr] gap-x-2 items-center text-purple-700 font-bold">
+                                        <div id="math-res-h" class="px-2">?</div>
+                                        <div>:</div>
+                                        <div id="math-res-m" class="px-2">?</div>
+                                    </div>
+                                </div>
+
+                                <!-- Controls -->
+                                <div class="flex gap-4 mt-6 w-full">
+                                    <button onclick="changeStep(-1)" id="btn-prev-step" class="flex-1 py-2 px-4 rounded-lg bg-gray-100 text-gray-600 font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <i data-lucide="chevron-left" class="w-4 h-4 inline"></i> <span data-i18n="btn_prev">上一步</span>
+                                    </button>
+                                    <button onclick="changeStep(1)" id="btn-next-step" class="flex-1 py-2 px-4 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <span data-i18n="btn_next">下一步</span> <i data-lucide="chevron-right" class="w-4 h-4 inline"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+<script>
+    // --- Localization ---
+    const translations = {
+        zh: {
+            app_title: "時間 (二)",
+            app_subtitle: "小學數學學習模擬器",
+            menu_read: "報讀時間",
+            menu_read_sub: "學習看時鐘",
+            menu_relation: "小時與分",
+            menu_relation_sub: "1小時 = 60分",
+            menu_interval: "時間間隔",
+            menu_interval_sub: "計算經過時間",
+            read_title: "認識幾時幾分",
+            read_desc: "拖動滑桿來調整時鐘，並觀察指針的變化。",
+            label_hour: "時 (Hour)",
+            label_minute: "分 (Minute)",
+            btn_random: "隨機出題",
+            relation_title: "小時與分的關係",
+            relation_desc: "點擊按鈕增加分鐘，觀察分針如何帶動時針移動。",
+            fact_title: "重要概念：",
+            fact_1: "1 小時 = 60 分鐘",
+            fact_2: "分針走一圈 = 時針走一大格",
+            mins_passed: "分鐘過去了",
+            unit_min: "分",
+            unit_hr: "小時",
+            interval_title: "計算時間間隔",
+            interval_desc: "算出開始時間和結束時間之間經過了多久。",
+            label_start: "開始時間",
+            label_end: "結束時間",
+            label_elapsed: "經過",
+            q_how_long: "請問經過了多久？",
+            btn_check: "檢查答案",
+            btn_next: "下一題",
+            feedback_correct: "🎉 答對了！太棒了！",
+            feedback_wrong: "❌ 再試一次喔！",
+            feedback_hint: "提示：結束分鐘小於開始分鐘時，記得借位喔。",
+            lang_btn: "English",
+            // Step translations
+            btn_steps: "演示計算步驟",
+            step_title: "計算步驟演示",
+            step_0: "列出算式：結束時間 - 開始時間",
+            step_1_borrow: "分鐘 (Top) 比 分鐘 (Bottom) 小，不夠減！\n向小時借 1。",
+            step_1_ok: "分鐘 (Top) 比 分鐘 (Bottom) 大，可以直接減。",
+            step_2: "計算分鐘：",
+            step_3: "計算小時：",
+            step_4: "完成！答案是：",
+            btn_prev: "上一步",
+            btn_next: "下一步",
+            borrow_h_label: "-1",
+            borrow_m_label: "+60"
+        },
+        en: {
+            app_title: "Time (II)",
+            app_subtitle: "Primary Math Simulator",
+            menu_read: "Telling Time",
+            menu_read_sub: "Read the clock",
+            menu_relation: "Hours & Minutes",
+            menu_relation_sub: "Relationship",
+            menu_interval: "Time Interval",
+            menu_interval_sub: "Elapsed Time",
+            read_title: "Reading the Clock",
+            read_desc: "Adjust the sliders to set the time and watch the hands move.",
+            label_hour: "Hour",
+            label_minute: "Minute",
+            btn_random: "Random Time",
+            relation_title: "Hours vs Minutes",
+            relation_desc: "Add minutes to see how the minute hand moves the hour hand.",
+            fact_title: "Key Concepts:",
+            fact_1: "1 Hour = 60 Minutes",
+            fact_2: "Minute hand full circle = Hour hand moves 1 unit",
+            mins_passed: "Minutes Passed",
+            unit_min: "min",
+            unit_hr: "hr",
+            interval_title: "Calculating Intervals",
+            interval_desc: "Calculate the duration between the Start Time and End Time.",
+            label_start: "Start Time",
+            label_end: "End Time",
+            label_elapsed: "Elapsed",
+            q_how_long: "How much time passed?",
+            btn_check: "Check Answer",
+            btn_next: "Next Question",
+            feedback_correct: "🎉 Correct! Great job!",
+            feedback_wrong: "❌ Try again!",
+            feedback_hint: "Hint: Remember to convert 1 hour to 60 minutes if needed.",
+            lang_btn: "繁體中文",
+            // Step translations
+            btn_steps: "Show Steps",
+            step_title: "Calculation Steps",
+            step_0: "Equation: End Time - Start Time",
+            step_1_borrow: "Top minutes < Bottom minutes.\nBorrow 1 hour from the hours.",
+            step_1_ok: "Top minutes >= Bottom minutes.\nWe can subtract directly.",
+            step_2: "Subtract Minutes:",
+            step_3: "Subtract Hours:",
+            step_4: "Done! The answer is:",
+            btn_prev: "Previous",
+            btn_next: "Next",
+            borrow_h_label: "-1",
+            borrow_m_label: "+60"
+        }
+    };
+
+    let currentLang = 'zh';
+
+    function toggleLanguage() {
+        currentLang = currentLang === 'zh' ? 'en' : 'zh';
+        document.documentElement.lang = currentLang === 'zh' ? 'zh-Hant' : 'en';
+        document.getElementById('lang-display').textContent = translations[currentLang].lang_btn;
+        updateText();
+    }
+
+    function updateText() {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (translations[currentLang][key]) {
+                el.textContent = translations[currentLang][key];
+            }
+        });
+    }
+
+    // --- Tab Switching ---
+    function switchTab(tabId) {
+        // Hide all sections
+        ['read', 'relation', 'interval'].forEach(id => {
+            document.getElementById(`section-${id}`).classList.add('hidden');
+            document.getElementById(`btn-${id}`).classList.remove('active', 'bg-green-500', 'text-white', 'shadow-md');
+            document.getElementById(`btn-${id}`).classList.add('text-gray-600', 'hover:bg-gray-50');
+        });
+
+        // Show active section
+        document.getElementById(`section-${tabId}`).classList.remove('hidden');
+        const btn = document.getElementById(`btn-${tabId}`);
+        btn.classList.add('active'); // active class handles styles in CSS
+        btn.classList.remove('text-gray-600', 'hover:bg-gray-50');
+    }
+
+    // --- Canvas Clock Drawing Logic ---
+    function drawClock(canvasId, hour, minute, colorTheme = 'default') {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        const radius = canvas.height / 2;
+        ctx.translate(radius, radius);
+        const r = radius * 0.90;
+
+        // Clear
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.translate(radius, radius);
+
+        // Colors
+        let faceColor = '#ffffff';
+        let hourHandColor = '#334155'; // Slate 700
+        let minuteHandColor = '#dc2626'; // Red 600
+        
+        if (colorTheme === 'green') minuteHandColor = '#16a34a';
+        if (colorTheme === 'blue') minuteHandColor = '#2563eb';
+
+        // Draw Face
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, 2 * Math.PI);
+        ctx.fillStyle = faceColor;
+        ctx.fill();
+
+        // Draw Numbers
+        ctx.font = `bold ${r * 0.15}px 'Nunito'`;
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#94a3b8"; // Light numbers
+        for (let num = 1; num <= 12; num++) {
+            const ang = num * Math.PI / 6;
+            ctx.rotate(ang);
+            ctx.translate(0, -r * 0.85);
+            ctx.rotate(-ang);
+            ctx.fillText(num.toString(), 0, 0);
+            ctx.rotate(ang);
+            ctx.translate(0, r * 0.85);
+            ctx.rotate(-ang);
+        }
+
+        // Ticks
+        for(let i = 0; i < 60; i++){
+            const ang = i * Math.PI / 30;
+            ctx.rotate(ang);
+            ctx.beginPath();
+            if(i % 5 === 0) {
+                ctx.moveTo(0, -r);
+                ctx.lineTo(0, -r * 0.92);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#64748b";
+            } else {
+                ctx.moveTo(0, -r);
+                ctx.lineTo(0, -r * 0.96);
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = "#cbd5e1";
+            }
+            ctx.stroke();
+            ctx.rotate(-ang);
+        }
+
+        // Draw Hour Hand
+        const hourAng = (hour % 12) * Math.PI / 6 + (minute * Math.PI / (6 * 60));
+        drawHand(ctx, hourAng, r * 0.55, 6, hourHandColor);
+
+        // Draw Minute Hand
+        const minuteAng = (minute * Math.PI / 30);
+        drawHand(ctx, minuteAng, r * 0.75, 4, minuteHandColor);
+
+        // Center Dot
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = "#0f172a";
+        ctx.fill();
+
+        // Reset transform for next draw
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+
+    function drawHand(ctx, pos, length, width, color) {
+        ctx.beginPath();
+        ctx.lineWidth = width;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = color;
+        ctx.moveTo(0, 0);
+        ctx.rotate(pos);
+        ctx.lineTo(0, -length);
+        ctx.stroke();
+        ctx.rotate(-pos);
+    }
+
+    // --- Section 1 Logic: Reading Time ---
+    const sliderHour = document.getElementById('slider-hour');
+    const sliderMinute = document.getElementById('slider-minute');
+    const digitalTime = document.getElementById('digital-time');
+
+    function updateReadClock() {
+        const h = parseInt(sliderHour.value);
+        const m = parseInt(sliderMinute.value);
+        
+        // Update Canvas
+        drawClock('clock-read', h, m);
+
+        // Update Digital Text
+        const mStr = m < 10 ? '0' + m : m;
+        const hStr = h < 10 ? '0' + h : h; // Optional: Keep single digit if preferred, standard is usually 12-hr
+        digitalTime.innerText = `${h}:${mStr}`;
+    }
+
+    function setRandomTime() {
+        sliderHour.value = Math.floor(Math.random() * 12) + 1;
+        sliderMinute.value = Math.floor(Math.random() * 60);
+        updateReadClock();
+    }
+
+    sliderHour.addEventListener('input', updateReadClock);
+    sliderMinute.addEventListener('input', updateReadClock);
+
+
+    // --- Section 2 Logic: Relation ---
+    let relBaseHour = 9;
+    let relTotalMinutes = 0; // Accumulated minutes added
+
+    function updateRelClock() {
+        // Calculate current time based on base + added minutes
+        let totalMin = relTotalMinutes;
+        let addedHours = Math.floor(totalMin / 60);
+        let remMin = totalMin % 60;
+        let currentH = relBaseHour + addedHours;
+        
+        drawClock('clock-relation', currentH, remMin, 'blue');
+
+        // Update Text & Progress
+        document.getElementById('relation-passed-min').innerText = relTotalMinutes;
+        
+        // Progress bar logic (visualize filling up an hour)
+        let percent = (remMin / 60) * 100;
+        if (remMin === 0 && relTotalMinutes > 0) percent = 100; // Full bar on exact hour
+        document.getElementById('progress-bar').style.width = percent + '%';
+        
+        if (percent === 100) {
+            setTimeout(() => { document.getElementById('progress-bar').style.width = '0%'; }, 500);
+        }
+    }
+
+    function animateTime(mins) {
+        let count = 0;
+        const interval = setInterval(() => {
+            relTotalMinutes++;
+            count++;
+            updateRelClock();
+            if (count >= mins) clearInterval(interval);
+        }, 20); // Speed of animation
+    }
+
+    function resetRelation() {
+        relTotalMinutes = 0;
+        relBaseHour = 9; // Reset to 9:00
+        updateRelClock();
+    }
+
+
+    // --- Section 3 Logic: Intervals ---
+    let intervalStart = { h: 0, m: 0 };
+    let intervalEnd = { h: 0, m: 0 };
+    let correctDuration = { h: 0, m: 0 };
+    
+    // Step State
+    let currentStepIndex = 0;
+    let stepData = {};
+
+    function newIntervalQuestion() {
+        // Hide steps when new question starts
+        document.getElementById('steps-container').classList.add('hidden');
+        
+        // Generate Start Time (e.g., between 1:00 and 8:00 to leave room)
+        const startH = Math.floor(Math.random() * 8) + 1;
+        const startM = Math.floor(Math.random() * 12) * 5; // Multiples of 5 for simplicity
+
+        // Generate Duration (e.g., 30 mins to 3 hrs 30 mins)
+        const durH = Math.floor(Math.random() * 3); 
+        const durM = Math.floor(Math.random() * 6) * 10 + 10; // 10, 20... min intervals
+
+        correctDuration = { h: durH + Math.floor((startM + durM)/60), m: (startM + durM) % 60 };
+        // Wait, correctDuration should be the difference. Let's store pure diff.
+        // Actually, let's calculate End Time first.
+        
+        let endTotalMins = (startH * 60 + startM) + (durH * 60 + durM);
+        let endH = Math.floor(endTotalMins / 60);
+        let endM = endTotalMins % 60;
+
+        // Store correct answer (Duration)
+        correctDuration = { 
+            h: Math.floor((endTotalMins - (startH * 60 + startM)) / 60), 
+            m: (endTotalMins - (startH * 60 + startM)) % 60 
+        };
+
+        intervalStart = { h: startH, m: startM };
+        intervalEnd = { h: endH, m: endM };
+
+        // Draw UI
+        drawClock('clock-start', startH, startM, 'green');
+        drawClock('clock-end', endH, endM, 'default'); // Red handled inside draw logic based on param? No, added color param to drawClock
+
+        document.getElementById('text-start').innerText = `${startH}:${startM < 10 ? '0'+startM : startM}`;
+        document.getElementById('text-end').innerText = `${endH}:${endM < 10 ? '0'+endM : endM}`;
+
+        // Clear inputs and feedback
+        document.getElementById('ans-hour').value = '';
+        document.getElementById('ans-min').value = '';
+        document.getElementById('feedback-msg').innerText = '';
+        document.getElementById('feedback-msg').className = 'mt-4 font-bold min-h-[1.5rem]';
+    }
+
+    function checkAnswer() {
+        const userH = parseInt(document.getElementById('ans-hour').value) || 0;
+        const userM = parseInt(document.getElementById('ans-min').value) || 0;
+        const feedback = document.getElementById('feedback-msg');
+
+        if (userH === correctDuration.h && userM === correctDuration.m) {
+            feedback.innerText = translations[currentLang].feedback_correct;
+            feedback.className = "mt-4 font-bold text-green-600 bg-green-100 p-2 rounded-lg inline-block animate-bounce";
+        } else {
+            feedback.innerText = translations[currentLang].feedback_wrong;
+            feedback.className = "mt-4 font-bold text-red-600 bg-red-100 p-2 rounded-lg inline-block";
+        }
+    }
+
+    // --- Step By Step Logic ---
+
+    function toggleSteps() {
+        const container = document.getElementById('steps-container');
+        if (container.classList.contains('hidden')) {
+            container.classList.remove('hidden');
+            // Scroll to steps
+            setTimeout(() => {
+                 container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+            initSteps();
+        } else {
+            container.classList.add('hidden');
+        }
+    }
+
+    function initSteps() {
+        currentStepIndex = 0;
+        
+        // Prepare Data
+        stepData = {
+            start: intervalStart,
+            end: intervalEnd,
+            borrowNeeded: intervalEnd.m < intervalStart.m,
+            finalH: correctDuration.h,
+            finalM: correctDuration.m
+        };
+
+        // Reset UI elements
+        document.getElementById('borrow-h').style.opacity = '0';
+        document.getElementById('borrow-m').style.opacity = '0';
+        document.getElementById('math-end-h').innerHTML = stepData.end.h;
+        document.getElementById('math-end-m').innerHTML = stepData.end.m < 10 ? '0' + stepData.end.m : stepData.end.m;
+        
+        // Remove strikethroughs
+        document.getElementById('math-end-h').classList.remove('line-through', 'text-gray-400', 'decoration-red-500', 'decoration-2');
+        document.getElementById('math-end-m').classList.remove('line-through', 'text-gray-400', 'decoration-red-500', 'decoration-2');
+
+        document.getElementById('math-start-h').innerHTML = stepData.start.h;
+        document.getElementById('math-start-m').innerHTML = stepData.start.m < 10 ? '0' + stepData.start.m : stepData.start.m;
+        
+        document.getElementById('math-res-h').innerHTML = '?';
+        document.getElementById('math-res-m').innerHTML = '?';
+
+        updateStepUI();
+    }
+
+    function changeStep(delta) {
+        const newStep = currentStepIndex + delta;
+        if (newStep >= 0 && newStep <= 4) {
+            currentStepIndex = newStep;
+            updateStepUI();
+        }
+    }
+
+    function updateStepUI() {
+        const t = translations[currentLang];
+        const instruction = document.getElementById('step-instruction');
+        const btnPrev = document.getElementById('btn-prev-step');
+        const btnNext = document.getElementById('btn-next-step');
+        
+        // Buttons state
+        btnPrev.disabled = currentStepIndex === 0;
+        btnNext.disabled = currentStepIndex === 4;
+
+        // Visual Elements
+        const elEndH = document.getElementById('math-end-h');
+        const elEndM = document.getElementById('math-end-m');
+        const elBorrowH = document.getElementById('borrow-h');
+        const elBorrowM = document.getElementById('borrow-m');
+        const elResH = document.getElementById('math-res-h');
+        const elResM = document.getElementById('math-res-m');
+
+        // Logic based on step
+        switch (currentStepIndex) {
+            case 0: // Setup
+                instruction.innerText = t.step_0;
+                // Reset visuals to clean state
+                elBorrowH.style.opacity = '0';
+                elBorrowM.style.opacity = '0';
+                elEndH.classList.remove('line-through', 'text-gray-400', 'decoration-red-500', 'decoration-2');
+                elEndM.classList.remove('line-through', 'text-gray-400', 'decoration-red-500', 'decoration-2');
+                elResM.innerText = '?';
+                elResH.innerText = '?';
+                break;
+
+            case 1: // Check Borrow
+                if (stepData.borrowNeeded) {
+                    instruction.innerText = t.step_1_borrow;
+                    // Visualize Borrow
+                    elEndH.classList.add('line-through', 'text-gray-400', 'decoration-red-500', 'decoration-2');
+                    elEndM.classList.add('line-through', 'text-gray-400', 'decoration-red-500', 'decoration-2');
+                    
+                    elBorrowH.innerText = stepData.end.h - 1;
+                    elBorrowM.innerText = stepData.end.m + 60;
+                    
+                    elBorrowH.style.opacity = '1';
+                    elBorrowM.style.opacity = '1';
+                } else {
+                    instruction.innerText = t.step_1_ok;
+                    // Ensure visuals are clean
+                    elBorrowH.style.opacity = '0';
+                    elBorrowM.style.opacity = '0';
+                    elEndH.classList.remove('line-through', 'decoration-red-500');
+                    elEndM.classList.remove('line-through', 'decoration-red-500');
+                }
+                elResM.innerText = '?';
+                break;
+
+            case 2: // Calc Minutes
+                const activeM = stepData.borrowNeeded ? (stepData.end.m + 60) : stepData.end.m;
+                instruction.innerText = `${t.step_2} ${activeM} - ${stepData.start.m} = ${stepData.finalM}`;
+                elResM.innerText = stepData.finalM < 10 ? '0'+stepData.finalM : stepData.finalM;
+                elResH.innerText = '?';
+                
+                // Ensure borrow state persists
+                if (stepData.borrowNeeded) {
+                   elBorrowH.style.opacity = '1'; 
+                   elBorrowM.style.opacity = '1';
+                }
+                break;
+
+            case 3: // Calc Hours
+                const activeH = stepData.borrowNeeded ? (stepData.end.h - 1) : stepData.end.h;
+                instruction.innerText = `${t.step_3} ${activeH} - ${stepData.start.h} = ${stepData.finalH}`;
+                elResH.innerText = stepData.finalH; // No leading zero for hours usually
+                break;
+
+            case 4: // Finish
+                instruction.innerText = `${t.step_4} ${stepData.finalH} ${t.unit_hr} ${stepData.finalM} ${t.unit_min}`;
+                break;
+        }
+    }
+
+    // --- Initialization ---
+    window.onload = function() {
+        lucide.createIcons();
+        updateText();
+        updateReadClock();
+        updateRelClock();
+        newIntervalQuestion();
+    };
+
+</script>
+</body>
+</html>
