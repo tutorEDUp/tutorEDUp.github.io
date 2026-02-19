@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>長度(一) 概念模擬器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+            user-select: none; /* 防止選取文字，優化觸控體驗 */
+            overflow-x: hidden;
+        }
+        
+        /* 自定義物件樣式 */
+        .object-pencil {
+            height: 20px;
+            border-radius: 10px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .object-pencil::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-left: 15px solid inherit; /* Color matches parent */
+        }
+        
+        .ruler-mark {
+            position: absolute;
+            bottom: 0;
+            border-left: 1px solid #333;
+        }
+        .ruler-mark.major { height: 25px; border-left: 2px solid #000; }
+        .ruler-mark.medium { height: 18px; }
+        .ruler-mark.minor { height: 12px; border-left: 1px solid #666; }
+        
+        /* 拖曳時的游標 */
+        .cursor-grab { cursor: grab; }
+        .cursor-grabbing { cursor: grabbing; }
+
+        /* iPad 優化: 隱藏滾動條但允許滾動 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col text-slate-800">
+
+    <!-- Header / Navigation -->
+    <header class="bg-white shadow-md z-10 p-4 flex justify-between items-center sticky top-0">
+        <div class="flex items-center gap-4">
+            <!-- Logo Placeholder -->
+            <div class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center overflow-hidden border border-slate-300">
+                <img src="logo.png" alt="Logo" onerror="this.style.display='none'; this.parentNode.innerText='Logo'" class="w-full h-full object-contain">
+            </div>
+            <h1 class="text-xl md:text-2xl font-bold text-blue-600" id="app-title">長度(一)</h1>
+        </div>
+        
+        <div class="flex gap-3">
+            <button onclick="toggleLang()" class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-full font-bold hover:bg-indigo-200 transition">
+                <span id="lang-btn-text">English</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Navigation Tabs -->
+    <nav class="bg-blue-50 p-2 flex justify-center gap-2 md:gap-4 border-b border-blue-100">
+        <button onclick="switchTab('compare')" id="tab-compare" class="tab-btn active bg-blue-500 text-white px-6 py-2 rounded-lg font-bold shadow-md transition-all transform hover:scale-105">比較長短</button>
+        <button onclick="switchTab('custom')" id="tab-custom" class="tab-btn bg-white text-blue-500 px-6 py-2 rounded-lg font-bold shadow-sm hover:bg-blue-50 transition-all">自訂單位</button>
+        <button onclick="switchTab('ruler')" id="tab-ruler" class="tab-btn bg-white text-blue-500 px-6 py-2 rounded-lg font-bold shadow-sm hover:bg-blue-50 transition-all">厘米與直尺</button>
+    </nav>
+
+    <!-- Content Container -->
+    <main class="flex-grow relative overflow-hidden flex flex-col items-center justify-start p-4 md:p-8">
+
+        <!-- SECTION 1: COMPARE (比較) -->
+        <div id="section-compare" class="w-full max-w-4xl h-full flex flex-col items-center justify-center space-y-8 animate-fade-in">
+            <div class="text-center space-y-2">
+                <h2 class="text-2xl font-bold text-slate-700" data-key="compare_title">哪一支鉛筆最長？</h2>
+                <p class="text-slate-500" data-key="compare_desc">點擊最長的鉛筆。</p>
+            </div>
+
+            <div class="bg-white p-8 rounded-2xl shadow-xl w-full flex flex-col gap-6 relative border-l-4 border-slate-300">
+                <!-- Start Line -->
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-slate-300 dashed z-0"></div>
+                
+                <!-- Objects -->
+                <div onclick="checkCompare(1)" class="cursor-pointer hover:bg-yellow-50 p-2 rounded transition flex items-center group">
+                    <div class="text-xl font-bold w-8 text-slate-400">A</div>
+                    <div class="h-6 bg-yellow-400 rounded-r-md shadow-md w-[40%] group-hover:scale-x-105 origin-left transition-transform duration-300 relative">
+                        <div class="absolute right-0 -mr-2 top-0 w-0 h-0 border-t-[12px] border-t-transparent border-l-[12px] border-l-yellow-400 border-b-[12px] border-b-transparent"></div>
+                    </div>
+                </div>
+
+                <div onclick="checkCompare(2)" class="cursor-pointer hover:bg-green-50 p-2 rounded transition flex items-center group">
+                    <div class="text-xl font-bold w-8 text-slate-400">B</div>
+                    <div class="h-6 bg-green-400 rounded-r-md shadow-md w-[80%] group-hover:scale-x-105 origin-left transition-transform duration-300 relative">
+                         <div class="absolute right-0 -mr-2 top-0 w-0 h-0 border-t-[12px] border-t-transparent border-l-[12px] border-l-green-400 border-b-[12px] border-b-transparent"></div>
+                    </div>
+                </div>
+
+                <div onclick="checkCompare(3)" class="cursor-pointer hover:bg-red-50 p-2 rounded transition flex items-center group">
+                    <div class="text-xl font-bold w-8 text-slate-400">C</div>
+                    <div class="h-6 bg-red-400 rounded-r-md shadow-md w-[60%] group-hover:scale-x-105 origin-left transition-transform duration-300 relative">
+                         <div class="absolute right-0 -mr-2 top-0 w-0 h-0 border-t-[12px] border-t-transparent border-l-[12px] border-l-red-400 border-b-[12px] border-b-transparent"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="compare-feedback" class="h-12 text-xl font-bold"></div>
+        </div>
+
+        <!-- SECTION 2: CUSTOM UNITS (自訂單位) -->
+        <div id="section-custom" class="hidden w-full max-w-4xl h-full flex flex-col items-center justify-start pt-10 space-y-6">
+            <div class="text-center space-y-2">
+                <h2 class="text-2xl font-bold text-slate-700" data-key="custom_title">使用萬字夾量度</h2>
+                <p class="text-slate-500" data-key="custom_desc">這本書大約有多長？點擊「增加」按鈕來量度。</p>
+            </div>
+
+            <div class="relative w-full bg-white rounded-2xl shadow-xl p-10 min-h-[300px] flex flex-col items-start justify-center">
+                
+                <!-- Target Object (Book) -->
+                <div class="h-32 bg-blue-600 rounded-md shadow-lg flex items-center justify-center text-white font-bold text-lg relative z-10 w-[400px] max-w-full">
+                    <span data-key="book">故事書</span>
+                    <div class="absolute left-0 top-0 bottom-0 w-2 bg-blue-700 rounded-l-md"></div>
+                </div>
+
+                <!-- Measuring Units Container -->
+                <div id="clips-container" class="flex items-center mt-4 h-12 gap-1">
+                    <!-- Clips will be injected here -->
+                </div>
+                
+                <!-- Baseline -->
+                <div class="absolute left-10 top-10 bottom-10 w-0.5 bg-slate-300 border-l border-dashed border-slate-400"></div>
+            </div>
+
+            <div class="flex gap-4 items-center bg-white p-4 rounded-xl shadow-lg">
+                <button onclick="updateClips(-1)" class="w-12 h-12 rounded-full bg-red-100 text-red-600 hover:bg-red-200 font-bold text-2xl flex items-center justify-center">-</button>
+                <div class="text-xl font-bold w-32 text-center">
+                    <span id="clip-count">0</span> <span data-key="units">個萬字夾</span>
+                </div>
+                <button onclick="updateClips(1)" class="w-12 h-12 rounded-full bg-green-100 text-green-600 hover:bg-green-200 font-bold text-2xl flex items-center justify-center">+</button>
+            </div>
+            
+            <button onclick="checkCustomAnswer()" class="bg-blue-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-600 transition" data-key="check_answer">檢查答案</button>
+            <div id="custom-feedback" class="h-8 font-bold text-lg"></div>
+        </div>
+
+        <!-- SECTION 3: RULER (直尺) -->
+        <div id="section-ruler" class="hidden w-full max-w-5xl h-full flex flex-col items-center justify-start pt-6 space-y-6">
+            <div class="text-center space-y-2">
+                <h2 class="text-2xl font-bold text-slate-700" data-key="ruler_title">認識厘米 (cm)</h2>
+                <p class="text-slate-500" data-key="ruler_desc">拖曳直尺測量絲帶的長度。</p>
+            </div>
+
+            <!-- Workspace -->
+            <div class="relative w-full h-[350px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden" id="ruler-workspace">
+                
+                <!-- Grid Background for visual aid -->
+                <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(#ccc 1px, transparent 1px), linear-gradient(90deg, #ccc 1px, transparent 1px); background-size: 20px 20px;"></div>
+
+                <!-- Target Object (Ribbon) -->
+                <!-- Width is set randomly by JS -->
+                <div id="ruler-target" class="absolute top-[100px] left-[100px] h-8 bg-pink-400 shadow-sm flex items-center justify-center rounded-sm">
+                    <div class="w-full h-full opacity-50" style="background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.5) 5px, rgba(255,255,255,0.5) 10px);"></div>
+                </div>
+                <div class="absolute top-[140px] left-[100px] text-xs text-slate-400" data-key="start_point">起點</div>
+
+                <!-- Draggable Ruler -->
+                <div id="draggable-ruler" class="absolute top-[200px] left-[20px] h-[70px] bg-yellow-100 border border-yellow-600 shadow-xl cursor-grab active:cursor-grabbing select-none rounded-sm flex items-end overflow-hidden" 
+                     style="width: 420px; touch-action: none;">
+                    
+                    <!-- Tick marks generated by JS -->
+                    <div id="ruler-marks" class="relative w-full h-full"></div>
+                    <div class="absolute top-1 right-2 text-xs font-bold text-yellow-800">cm</div>
+                </div>
+
+            </div>
+
+            <!-- Controls -->
+            <div class="flex flex-col md:flex-row items-center gap-6 bg-white p-6 rounded-xl shadow-md w-full max-w-2xl">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-slate-600" data-key="length_is">長度是：</span>
+                    <input type="number" id="ruler-input" class="border-2 border-slate-300 rounded-lg p-2 w-20 text-center text-xl font-bold focus:border-blue-500 outline-none" placeholder="?">
+                    <span class="font-bold text-slate-600">cm</span>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="checkRulerAnswer()" class="bg-blue-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600 shadow-md transition" data-key="check_answer">檢查</button>
+                    <button onclick="resetRulerTask()" class="bg-slate-200 text-slate-600 px-6 py-2 rounded-lg font-bold hover:bg-slate-300 transition" data-key="new_question">新題目</button>
+                </div>
+            </div>
+            <div id="ruler-feedback" class="h-8 font-bold text-lg"></div>
+
+        </div>
+
+    </main>
+
+    <script>
+        // --- Translations ---
+        const i18n = {
+            zh: {
+                app_title: "長度(一)",
+                compare_tab: "比較長短",
+                custom_tab: "自訂單位",
+                ruler_tab: "厘米與直尺",
+                compare_title: "哪一支鉛筆最長？",
+                compare_desc: "點擊最長的鉛筆。",
+                correct: "答對了！太棒了！",
+                wrong: "不對喔，再試一次。",
+                wrong_try_again: "再試一次！找找哪一支凸出來最多？",
+                custom_title: "使用萬字夾量度",
+                custom_desc: "這本書大約有多長？按 + 或 - 來量度。",
+                book: "故事書",
+                units: "個萬字夾",
+                check_answer: "檢查答案",
+                ruler_title: "認識厘米 (cm)",
+                ruler_desc: "拖曳直尺，將 '0' 對齊絲帶的一端。",
+                length_is: "長度是：",
+                new_question: "新題目",
+                start_point: "起點",
+                correct_length: "答對了！長度是 ",
+                wrong_length: "不正確。請確保直尺的 '0' 對齊左邊，再讀取右邊的刻度。"
+            },
+            en: {
+                app_title: "Length (I)",
+                compare_tab: "Compare",
+                custom_tab: "Custom Units",
+                ruler_tab: "Ruler (cm)",
+                compare_title: "Which pencil is the longest?",
+                compare_desc: "Click on the longest pencil.",
+                correct: "Correct! Great job!",
+                wrong: "Not quite, try again.",
+                wrong_try_again: "Try again! Which one sticks out the most?",
+                custom_title: "Measure with Paper Clips",
+                custom_desc: "About how long is the book? Press + or - to measure.",
+                book: "Story Book",
+                units: "paper clips",
+                check_answer: "Check Answer",
+                ruler_title: "Understanding Centimeters (cm)",
+                ruler_desc: "Drag the ruler to align '0' with the edge of the ribbon.",
+                length_is: "Length:",
+                new_question: "New Question",
+                start_point: "Start",
+                correct_length: "Correct! The length is ",
+                wrong_length: "Incorrect. Align the '0' mark with the left edge, then read the right edge."
+            }
+        };
+
+        // --- State ---
+        let currentLang = 'zh';
+        let currentClips = 0;
+        const targetClips = 8; // The book is visually 8 "units" wide
+        let currentRulerTargetLength = 5; // cm
+        const pxPerCm = 37.8; // Approx screen pixel per cm for web display logic (arbitrary scale for visual)
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initRuler();
+            resetRulerTask();
+            updateLang();
+        });
+
+        // --- Language Handling ---
+        function toggleLang() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            document.getElementById('lang-btn-text').innerText = currentLang === 'zh' ? 'English' : '中文';
+            updateLang();
+        }
+
+        function updateLang() {
+            const t = i18n[currentLang];
+            document.getElementById('app-title').innerText = t.app_title;
+            document.getElementById('tab-compare').innerText = t.compare_tab;
+            document.getElementById('tab-custom').innerText = t.custom_tab;
+            document.getElementById('tab-ruler').innerText = t.ruler_tab;
+            
+            // Dynamic text updates via data-key attribute
+            document.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.getAttribute('data-key');
+                if (t[key]) el.innerText = t[key];
+            });
+        }
+
+        // --- Tab Switching ---
+        function switchTab(tabName) {
+            // Hide all sections
+            ['compare', 'custom', 'ruler'].forEach(name => {
+                document.getElementById(`section-${name}`).classList.add('hidden');
+                document.getElementById(`tab-${name}`).classList.remove('bg-blue-500', 'text-white');
+                document.getElementById(`tab-${name}`).classList.add('bg-white', 'text-blue-500');
+            });
+
+            // Show selected
+            document.getElementById(`section-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.add('bg-blue-500', 'text-white');
+            document.getElementById(`tab-${tabName}`).classList.remove('bg-white', 'text-blue-500');
+        }
+
+        // --- Section 1: Compare ---
+        function checkCompare(id) {
+            const feedback = document.getElementById('compare-feedback');
+            // Logic: B (2) is visually the longest in the HTML/CSS width percentage
+            if (id === 2) {
+                feedback.innerHTML = `<span class="text-green-600">${i18n[currentLang].correct}</span>`;
+            } else {
+                feedback.innerHTML = `<span class="text-red-500">${i18n[currentLang].wrong}</span>`;
+            }
+        }
+
+        // --- Section 2: Custom Units ---
+        function updateClips(change) {
+            currentClips += change;
+            if (currentClips < 0) currentClips = 0;
+            if (currentClips > 12) currentClips = 12; // Max limit
+
+            document.getElementById('clip-count').innerText = currentClips;
+            renderClips();
+            document.getElementById('custom-feedback').innerText = "";
+        }
+
+        function renderClips() {
+            const container = document.getElementById('clips-container');
+            container.innerHTML = '';
+            for (let i = 0; i < currentClips; i++) {
+                // SVG Paperclip representation
+                const clip = document.createElement('div');
+                clip.className = 'h-8 w-[50px] flex items-center justify-center -mr-2'; // overlap slightly
+                clip.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full text-slate-600">
+                        <path d="M13.293 3.293a7.58 7.58 0 1 1 5.657 5.657l-11.314 11.314a5 5 0 0 1-7.07-7.071l9.9-9.9"></path>
+                    </svg>
+                `;
+                container.appendChild(clip);
+            }
+        }
+
+        function checkCustomAnswer() {
+            const feedback = document.getElementById('custom-feedback');
+            // Target is 8 clips approx
+            if (currentClips === 8) {
+                feedback.innerHTML = `<span class="text-green-600">${i18n[currentLang].correct}</span>`;
+            } else if (Math.abs(currentClips - 8) <= 1) {
+                feedback.innerHTML = `<span class="text-yellow-600">差一點點！</span>`;
+            } else {
+                feedback.innerHTML = `<span class="text-red-500">${i18n[currentLang].wrong}</span>`;
+            }
+        }
+
+        // --- Section 3: Ruler Logic ---
+        function initRuler() {
+            const rulerContainer = document.getElementById('ruler-marks');
+            // Draw 15cm
+            for (let i = 0; i <= 15; i++) {
+                const mark = document.createElement('div');
+                const leftPos = i * pxPerCm + 15; // 15px padding start
+                
+                mark.className = 'ruler-mark major text-xs font-bold';
+                mark.style.left = `${leftPos}px`;
+                // Add number
+                const num = document.createElement('span');
+                num.innerText = i;
+                num.className = 'absolute -bottom-5 left-[-4px]';
+                mark.appendChild(num);
+                rulerContainer.appendChild(mark);
+
+                // Middle ticks (0.5)
+                if (i < 15) {
+                    const mid = document.createElement('div');
+                    mid.className = 'ruler-mark medium';
+                    mid.style.left = `${leftPos + (pxPerCm/2)}px`;
+                    rulerContainer.appendChild(mid);
+                    
+                    // Small ticks
+                    for(let j=1; j<10; j++) {
+                        if(j===5) continue;
+                        const sm = document.createElement('div');
+                        sm.className = 'ruler-mark minor';
+                        sm.style.left = `${leftPos + (pxPerCm/10)*j}px`;
+                        rulerContainer.appendChild(sm);
+                    }
+                }
+            }
+        }
+
+        function resetRulerTask() {
+            // Random length between 3 and 10 (integers for easy level)
+            currentRulerTargetLength = Math.floor(Math.random() * 8) + 3; 
+            
+            const targetEl = document.getElementById('ruler-target');
+            targetEl.style.width = `${currentRulerTargetLength * pxPerCm}px`;
+            
+            // Reset input and ruler pos
+            document.getElementById('ruler-input').value = '';
+            document.getElementById('ruler-feedback').innerText = '';
+            
+            const ruler = document.getElementById('draggable-ruler');
+            ruler.style.left = '20px';
+            ruler.style.top = '220px';
+        }
+
+        function checkRulerAnswer() {
+            const inputVal = parseInt(document.getElementById('ruler-input').value);
+            const feedback = document.getElementById('ruler-feedback');
+            
+            // Logic: Must match length AND ruler must be aligned reasonably well
+            const ruler = document.getElementById('draggable-ruler');
+            const target = document.getElementById('ruler-target');
+            
+            // Calculate screen positions
+            const rulerRect = ruler.getBoundingClientRect();
+            const targetRect = target.getBoundingClientRect();
+            
+            // The '0' mark is at rulerRect.left + 15px (padding)
+            const zeroMarkX = rulerRect.left + 15;
+            const targetStartX = targetRect.left;
+            
+            // Tolerance of +/- 10 pixels for alignment
+            const isAligned = Math.abs(zeroMarkX - targetStartX) < 15;
+            
+            if (isAligned && inputVal === currentRulerTargetLength) {
+                feedback.innerHTML = `<span class="text-green-600">${i18n[currentLang].correct_length}${currentRulerTargetLength}cm</span>`;
+            } else if (!isAligned) {
+                 feedback.innerHTML = `<span class="text-orange-500">請先把直尺的 '0' 對齊絲帶左邊。</span>`;
+            } else {
+                 feedback.innerHTML = `<span class="text-red-500">${i18n[currentLang].wrong}</span>`;
+            }
+        }
+
+        // --- Drag and Drop Logic (Mouse + Touch) ---
+        const ruler = document.getElementById('draggable-ruler');
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        const container = document.getElementById('ruler-workspace');
+
+        function startDrag(e) {
+            isDragging = true;
+            
+            // Get position for mouse or touch
+            const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            
+            startX = clientX;
+            startY = clientY;
+            
+            const style = window.getComputedStyle(ruler);
+            initialLeft = parseInt(style.left);
+            initialTop = parseInt(style.top);
+            
+            ruler.classList.add('cursor-grabbing');
+            
+            // Prevent scrolling on touch
+            if(e.type === 'touchstart') {
+                // e.preventDefault(); // Sometimes needed, but can block page scroll. Using touch-action: none on element instead.
+            }
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            e.preventDefault(); // Prevent scroll while dragging ruler
+            
+            const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            
+            const dx = clientX - startX;
+            const dy = clientY - startY;
+            
+            let newLeft = initialLeft + dx;
+            let newTop = initialTop + dy;
+            
+            // Boundaries
+            const maxLeft = container.offsetWidth - ruler.offsetWidth;
+            const maxTop = container.offsetHeight - ruler.offsetHeight;
+            
+            if (newLeft < -100) newLeft = -100;
+            if (newLeft > container.offsetWidth - 50) newLeft = container.offsetWidth - 50;
+            if (newTop < 0) newTop = 0;
+            if (newTop > maxTop) newTop = maxTop;
+            
+            ruler.style.left = `${newLeft}px`;
+            ruler.style.top = `${newTop}px`;
+        }
+
+        function endDrag() {
+            isDragging = false;
+            ruler.classList.remove('cursor-grabbing');
+        }
+
+        ruler.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
+
+        ruler.addEventListener('touchstart', startDrag, {passive: false});
+        document.addEventListener('touchmove', drag, {passive: false});
+        document.addEventListener('touchend', endDrag);
+
+    </script>
+</body>
+</html>
