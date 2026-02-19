@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乘法(一) 概念模擬器 | Multiplication (I) Simulator</title>
+    <!-- Tailwind CSS for Responsive Design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Fredoka', 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+            /* Prevent bounce effect on iPad */
+            overscroll-behavior-y: none; 
+        }
+        
+        /* Custom Scrollbar for tables */
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Animation for items */
+        .item-pop {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .active-tab {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);
+        }
+        .inactive-tab {
+            background-color: white;
+            color: #64748b;
+        }
+        .inactive-tab:hover {
+            background-color: #f1f5f9;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800">
+
+    <!-- Top Navigation Bar -->
+    <nav class="bg-white shadow-md z-10 flex-none">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- Logo & Title -->
+                <div class="flex items-center gap-4">
+                    <!-- Logo Placeholder -->
+                    <div class="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center overflow-hidden border-2 border-blue-200">
+                        <img src="logo.png" alt="Logo" class="h-full w-full object-contain" onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\'fa-solid fa-calculator text-blue-500\'></i>'">
+                    </div>
+                    <h1 class="text-xl md:text-2xl font-bold text-blue-600" id="app-title">乘法 (一)</h1>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleLang()" class="flex items-center gap-2 px-4 py-2 rounded-full bg-orange-100 text-orange-600 font-bold hover:bg-orange-200 transition text-sm md:text-base">
+                        <i class="fa-solid fa-language"></i>
+                        <span id="lang-btn-text">English</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Layout: Sidebar + Content -->
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Sidebar Navigation (Tabs) -->
+        <aside class="w-full md:w-64 bg-slate-50 border-r border-slate-200 flex-none flex md:flex-col overflow-x-auto md:overflow-y-auto p-2 gap-2 hide-scrollbar">
+            <button onclick="switchTab('concept')" id="nav-concept" class="nav-item active-tab p-3 rounded-xl flex items-center gap-3 font-bold transition-all w-full md:w-auto flex-shrink-0">
+                <i class="fa-solid fa-lightbulb"></i> <span data-key="nav_concept">基本概念</span>
+            </button>
+            <button onclick="switchTab('tables')" id="nav-tables" class="nav-item inactive-tab p-3 rounded-xl flex items-center gap-3 font-bold transition-all w-full md:w-auto flex-shrink-0">
+                <i class="fa-solid fa-table-list"></i> <span data-key="nav_tables">乘法表</span>
+            </button>
+            <button onclick="switchTab('zero-one')" id="nav-zero-one" class="nav-item inactive-tab p-3 rounded-xl flex items-center gap-3 font-bold transition-all w-full md:w-auto flex-shrink-0">
+                <i class="fa-solid fa-0"></i> <span data-key="nav_zero_one">0 和 1</span>
+            </button>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="flex-1 bg-blue-50/50 overflow-y-auto custom-scroll p-4 md:p-8 relative">
+            
+            <!-- SECTION 1: Basic Concept -->
+            <div id="view-concept" class="view-section space-y-6 max-w-4xl mx-auto">
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+                    <h2 class="text-2xl font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-shapes text-purple-500"></i>
+                        <span data-key="concept_title">什麼是乘法？</span>
+                    </h2>
+                    <p class="text-lg text-slate-600 mb-6" data-key="concept_desc">乘法就是「連加法」。當我們有許多組相同的物品時，我們可以使用乘法。</p>
+                    
+                    <!-- Interactive Visualizer -->
+                    <div class="bg-slate-50 rounded-2xl p-6 border-2 border-slate-200">
+                        <div class="flex flex-col md:flex-row gap-8 items-center justify-center mb-8">
+                            <!-- Controls -->
+                            <div class="space-y-6 w-full md:w-1/3">
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-500 mb-2" data-key="label_groups">幾組 (Groups)</label>
+                                    <div class="flex items-center gap-4">
+                                        <button onclick="updateConcept(-1, 0)" class="w-10 h-10 rounded-full bg-red-100 text-red-500 font-bold hover:bg-red-200 transition"><i class="fa-solid fa-minus"></i></button>
+                                        <span id="val-groups" class="text-3xl font-bold w-8 text-center">3</span>
+                                        <button onclick="updateConcept(1, 0)" class="w-10 h-10 rounded-full bg-green-100 text-green-500 font-bold hover:bg-green-200 transition"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-500 mb-2" data-key="label_per_group">每組幾個 (Items per Group)</label>
+                                    <div class="flex items-center gap-4">
+                                        <button onclick="updateConcept(0, -1)" class="w-10 h-10 rounded-full bg-red-100 text-red-500 font-bold hover:bg-red-200 transition"><i class="fa-solid fa-minus"></i></button>
+                                        <span id="val-items" class="text-3xl font-bold w-8 text-center">4</span>
+                                        <button onclick="updateConcept(0, 1)" class="w-10 h-10 rounded-full bg-green-100 text-green-500 font-bold hover:bg-green-200 transition"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Visualization -->
+                            <div id="concept-visual" class="flex-1 flex flex-wrap gap-4 justify-center items-center bg-white p-4 rounded-xl shadow-inner min-h-[200px] w-full">
+                                <!-- Generated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Formula Display -->
+                        <div class="text-center bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                            <div class="text-lg text-slate-500 mb-2" data-key="addition_eq">加法算式：</div>
+                            <div id="addition-formula" class="text-xl md:text-2xl font-mono text-slate-600 mb-3">4 + 4 + 4 = 12</div>
+                            <div class="h-px bg-yellow-200 w-full my-2"></div>
+                            <div class="text-lg text-slate-500 mb-2" data-key="multiplication_eq">乘法算式：</div>
+                            <div class="text-3xl md:text-5xl font-bold text-blue-600 font-mono">
+                                <span id="eq-groups">3</span> × <span id="eq-items">4</span> = <span id="eq-total">12</span>
+                            </div>
+                            <div class="flex justify-center gap-8 mt-2 text-sm text-slate-400">
+                                <span data-key="label_multiplier">被乘數</span>
+                                <span data-key="label_multiplicand">乘數</span>
+                                <span data-key="label_product">積</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Multiplication Tables -->
+            <div id="view-tables" class="view-section hidden space-y-4 h-full flex flex-col">
+                <div class="flex-none bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4">
+                    <h2 class="text-xl font-bold text-slate-700 mb-3" data-key="choose_table">選擇乘法表：</h2>
+                    <div class="flex flex-wrap gap-2" id="table-buttons">
+                        <!-- Buttons injected by JS -->
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
+                    <!-- Table Display -->
+                    <div class="flex-1 bg-white rounded-2xl shadow-lg border border-blue-100 overflow-y-auto custom-scroll p-2">
+                        <table class="w-full text-center border-collapse">
+                            <thead>
+                                <tr class="bg-blue-50 text-blue-700">
+                                    <th class="p-4 rounded-tl-xl" data-key="col_eq">算式</th>
+                                    <th class="p-4" data-key="col_read">讀作</th>
+                                    <th class="p-4 rounded-tr-xl" data-key="col_ans">答案</th>
+                                </tr>
+                            </thead>
+                            <tbody id="multiplication-list" class="text-lg md:text-xl text-slate-600 font-mono">
+                                <!-- Rows injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Quick Visual Helper for Table -->
+                    <div class="w-full md:w-1/3 bg-indigo-50 rounded-2xl p-6 flex flex-col items-center justify-center border border-indigo-100 text-center">
+                        <h3 class="text-lg font-bold text-indigo-800 mb-4" id="visual-helper-title">5 的倍數</h3>
+                        <div id="table-visual-grid" class="grid grid-cols-5 gap-2 w-full max-w-[200px]">
+                            <!-- Dots for visual reinforcement -->
+                        </div>
+                        <p class="mt-4 text-sm text-indigo-600" id="table-hint">觀察尾數的變化！</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 3: 0 and 1 -->
+            <div id="view-zero-one" class="view-section hidden space-y-6 max-w-4xl mx-auto">
+                
+                <!-- Rule of 1 -->
+                <div class="bg-white rounded-3xl p-6 shadow-sm border-l-8 border-green-400 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-10 text-9xl font-bold text-green-500 -mr-4 -mt-4">1</div>
+                    <h2 class="text-2xl font-bold text-slate-700 mb-4" data-key="rule_one_title">1 的乘法</h2>
+                    <p class="text-lg mb-4" data-key="rule_one_desc">任何數字乘以 1，結果還是那個數字自己。</p>
+                    <div class="bg-green-50 p-6 rounded-xl flex items-center justify-around flex-wrap gap-4">
+                        <div class="text-center">
+                            <div class="text-sm text-slate-400 mb-1">1 組 5 個蘋果</div>
+                            <div class="text-3xl font-bold font-mono">1 × 5 = 5</div>
+                        </div>
+                        <div class="text-4xl text-green-300"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="bg-white p-3 rounded-lg border border-green-200 shadow-sm">
+                            <span class="text-2xl">🍎🍎🍎🍎🍎</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-4 justify-center">
+                        <button onclick="testRule(1)" class="bg-green-500 text-white px-6 py-2 rounded-full font-bold hover:bg-green-600 transition shadow-lg shadow-green-200" data-key="btn_try">試試看</button>
+                    </div>
+                </div>
+
+                <!-- Rule of 0 -->
+                <div class="bg-white rounded-3xl p-6 shadow-sm border-l-8 border-red-400 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 opacity-10 text-9xl font-bold text-red-500 -mr-4 -mt-4">0</div>
+                    <h2 class="text-2xl font-bold text-slate-700 mb-4" data-key="rule_zero_title">0 的乘法</h2>
+                    <p class="text-lg mb-4" data-key="rule_zero_desc">任何數字乘以 0，結果都是 0。就像有 0 個盤子，不管盤子該裝什麼，現在什麼都沒有。</p>
+                    <div class="bg-red-50 p-6 rounded-xl flex items-center justify-around flex-wrap gap-4">
+                        <div class="text-center">
+                            <div class="text-sm text-slate-400 mb-1">5 組 0 個蘋果</div>
+                            <div class="text-3xl font-bold font-mono">5 × 0 = 0</div>
+                        </div>
+                        <div class="text-4xl text-red-300"><i class="fa-solid fa-arrow-right"></i></div>
+                        <div class="bg-white h-16 w-32 rounded-lg border-2 border-dashed border-red-300 flex items-center justify-center text-slate-300">
+                           (Empty)
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-4 justify-center">
+                        <button onclick="testRule(0)" class="bg-red-500 text-white px-6 py-2 rounded-full font-bold hover:bg-red-600 transition shadow-lg shadow-red-200" data-key="btn_try">試試看</button>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Simple Modal for "Try it" -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl transform scale-100 transition-transform">
+            <h3 class="text-2xl font-bold mb-4 text-center" id="modal-title">測試</h3>
+            <div class="text-center text-4xl font-mono mb-8 font-bold text-slate-700" id="modal-problem">
+                8 × 1 = ?
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="checkAnswer(this)" class="modal-opt bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-4 rounded-xl text-xl transition">8</button>
+                <button onclick="checkAnswer(this)" class="modal-opt bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-4 rounded-xl text-xl transition">1</button>
+            </div>
+            <button onclick="closeModal()" class="mt-6 w-full py-3 text-slate-400 font-bold hover:text-slate-600">關閉 (Close)</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA & CONFIG ---
+        const config = {
+            lang: 'zh',
+            concept: { groups: 3, items: 4 },
+            currentTable: 1,
+            tableOrder: [1, 2, 3, 4, 5, 6, 7, 8, 9] // Order changed to 1-9
+        };
+
+        const translations = {
+            zh: {
+                app_title: "乘法 (一) 模擬器",
+                nav_concept: "基本概念",
+                nav_tables: "乘法表",
+                nav_zero_one: "0 和 1",
+                concept_title: "什麼是乘法？",
+                concept_desc: "乘法就是「連加法」。當我們有許多組相同的物品時，我們可以使用乘法。",
+                label_groups: "幾組 (被乘數)",
+                label_per_group: "每組幾個 (乘數)",
+                addition_eq: "加法算式：",
+                multiplication_eq: "乘法算式：",
+                label_multiplier: "被乘數",
+                label_multiplicand: "乘數",
+                label_product: "積",
+                choose_table: "選擇乘法表：",
+                col_eq: "算式",
+                col_read: "讀作",
+                col_ans: "答案",
+                table_hint_1: "任何數乘以 1 都是它自己！",
+                table_hint_2: "雙數！個位數是 2, 4, 6, 8, 0",
+                table_hint_5: "個位數一定是 0 或 5",
+                table_hint_10: "個位數一定是 0",
+                table_hint_general: "觀察數字增加的規律！",
+                rule_one_title: "1 的乘法 (單位元素)",
+                rule_one_desc: "任何數字乘以 1，結果還是那個數字自己。",
+                rule_zero_title: "0 的乘法",
+                rule_zero_desc: "任何數字乘以 0，結果都是 0。就像有 0 個盤子，不管盤子該裝什麼，現在什麼都沒有。",
+                btn_try: "試試看",
+                read_format: (a, b, c) => `${a} 乘以 ${b} 等於 ${c}`
+            },
+            en: {
+                app_title: "Multiplication (I) Simulator",
+                nav_concept: "Basic Concepts",
+                nav_tables: "Times Tables",
+                nav_zero_one: "0 and 1",
+                concept_title: "What is Multiplication?",
+                concept_desc: "Multiplication is repeated addition. We use it when we have equal-sized groups.",
+                label_groups: "Groups (Multiplier)",
+                label_per_group: "Items per Group",
+                addition_eq: "Addition:",
+                multiplication_eq: "Multiplication:",
+                label_multiplier: "Multiplier",
+                label_multiplicand: "Multiplicand",
+                label_product: "Product",
+                choose_table: "Select Table:",
+                col_eq: "Equation",
+                col_read: "Read as",
+                col_ans: "Answer",
+                table_hint_1: "Any number multiplied by 1 is itself!",
+                table_hint_2: "Even numbers! Ends in 2, 4, 6, 8, 0",
+                table_hint_5: "Always ends in 0 or 5",
+                table_hint_10: "Always ends in 0",
+                table_hint_general: "Watch the pattern of increase!",
+                rule_one_title: "Multiplication by 1",
+                rule_one_desc: "Any number multiplied by 1 stays the same.",
+                rule_zero_title: "Multiplication by 0",
+                rule_zero_desc: "Any number multiplied by 0 is 0. It's like having empty plates.",
+                btn_try: "Try It",
+                read_format: (a, b, c) => `${a} times ${b} equals ${c}`
+            }
+        };
+
+        // --- CORE FUNCTIONS ---
+
+        function init() {
+            renderLanguage();
+            renderConcept();
+            renderTableButtons();
+            loadTable(1);
+        }
+
+        // Language Handling
+        function toggleLang() {
+            config.lang = config.lang === 'zh' ? 'en' : 'zh';
+            document.getElementById('lang-btn-text').innerText = config.lang === 'zh' ? 'English' : '中文';
+            renderLanguage();
+            // Re-render specific dynamic parts
+            loadTable(config.currentTable); 
+            renderConcept(); 
+        }
+
+        function t(key) {
+            return translations[config.lang][key] || key;
+        }
+
+        function renderLanguage() {
+            document.getElementById('app-title').innerText = t('app_title');
+            document.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.getAttribute('data-key');
+                el.innerText = t(key);
+            });
+        }
+
+        // Navigation
+        function switchTab(tabId) {
+            // Hide all views
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+
+            // Update Nav State
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('active-tab');
+                el.classList.add('inactive-tab');
+            });
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            activeBtn.classList.remove('inactive-tab');
+            activeBtn.classList.add('active-tab');
+        }
+
+        // --- MODULE 1: CONCEPTS ---
+        
+        function updateConcept(dGroups, dItems) {
+            let newG = config.concept.groups + dGroups;
+            let newI = config.concept.items + dItems;
+
+            // Limits
+            if(newG < 1) newG = 1; if(newG > 9) newG = 9;
+            if(newI < 1) newI = 1; if(newI > 12) newI = 12;
+
+            config.concept.groups = newG;
+            config.concept.items = newI;
+            renderConcept();
+        }
+
+        function renderConcept() {
+            const { groups, items } = config.concept;
+            const total = groups * items;
+
+            document.getElementById('val-groups').innerText = groups;
+            document.getElementById('val-items').innerText = items;
+
+            document.getElementById('eq-groups').innerText = groups;
+            document.getElementById('eq-items').innerText = items;
+            document.getElementById('eq-total').innerText = total;
+
+            // Render Addition String
+            let addArr = Array(groups).fill(items);
+            document.getElementById('addition-formula').innerText = addArr.join(' + ') + ' = ' + total;
+
+            // Render Visuals (Groups of Items)
+            const visualContainer = document.getElementById('concept-visual');
+            visualContainer.innerHTML = '';
+
+            const colors = ['bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-400', 'bg-blue-400', 'bg-indigo-400', 'bg-purple-400', 'bg-pink-400', 'bg-teal-400'];
+
+            for (let i = 0; i < groups; i++) {
+                const groupColor = colors[i % colors.length];
+                const groupDiv = document.createElement('div');
+                groupDiv.className = `p-2 border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-wrap gap-1 justify-center items-center item-pop`;
+                groupDiv.style.width = '80px';
+                groupDiv.style.minHeight = '80px';
+                
+                for (let j = 0; j < items; j++) {
+                    const dot = document.createElement('div');
+                    // Choose an icon or simple circle
+                    dot.className = `w-4 h-4 rounded-full ${groupColor} shadow-sm`;
+                    groupDiv.appendChild(dot);
+                }
+                visualContainer.appendChild(groupDiv);
+            }
+        }
+
+        // --- MODULE 2: TABLES ---
+
+        function renderTableButtons() {
+            const container = document.getElementById('table-buttons');
+            container.innerHTML = '';
+            
+            config.tableOrder.forEach(num => {
+                const btn = document.createElement('button');
+                btn.className = `px-4 py-2 rounded-lg font-bold border-2 transition ${config.currentTable === num ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-blue-50'}`;
+                btn.innerText = `x${num}`;
+                btn.onclick = () => loadTable(num);
+                container.appendChild(btn);
+            });
+        }
+
+        function loadTable(num) {
+            config.currentTable = num;
+            renderTableButtons(); // Update active state
+
+            const tbody = document.getElementById('multiplication-list');
+            tbody.innerHTML = '';
+            
+            // Generate rows 1 to 10
+            for(let i = 1; i <= 10; i++) {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-blue-50 transition border-b border-slate-100 last:border-0";
+                
+                const product = num * i;
+                const readText = config.lang === 'zh' 
+                    ? `${num} 乘以 ${i} 等於 ${product}` // Can adjust to simpler Chinese reading if needed like "二一得二" but standard math text is safer for concepts.
+                    : `${num} times ${i} equals ${product}`;
+
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-blue-600">${num} × ${i}</td>
+                    <td class="p-3 text-sm text-slate-500">${readText}</td>
+                    <td class="p-3 font-bold text-slate-700">${product}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            // Update Visual Helper
+            document.getElementById('visual-helper-title').innerText = `${num} 的倍數 (Multiples of ${num})`;
+            
+            let hintKey = `table_hint_${num}`;
+            if(!translations['zh'][hintKey]) hintKey = 'table_hint_general';
+            document.getElementById('table-hint').innerText = t(hintKey);
+
+            // Simple visual grid for the number
+            const grid = document.getElementById('table-visual-grid');
+            grid.innerHTML = '';
+            // Show just one group of N to denote the base
+            for(let k=0; k<num; k++) {
+                const d = document.createElement('div');
+                d.className = "w-6 h-6 rounded bg-indigo-400 mx-auto item-pop";
+                grid.appendChild(d);
+            }
+        }
+
+        // --- MODULE 3: 0 AND 1 QUIZ ---
+
+        let currentAnswer = 0;
+
+        function testRule(type) {
+            const modal = document.getElementById('modal-overlay');
+            const title = document.getElementById('modal-title');
+            const problem = document.getElementById('modal-problem');
+            const btns = document.querySelectorAll('.modal-opt');
+
+            modal.classList.remove('hidden');
+            
+            const randNum = Math.floor(Math.random() * 99) + 2; // Random number 2-100
+            
+            if (type === 1) {
+                title.innerText = config.lang === 'zh' ? '測試: 1 的乘法' : 'Quiz: Rule of 1';
+                problem.innerText = `${randNum} × 1 = ?`;
+                currentAnswer = randNum;
+                
+                // Set buttons randomly
+                if(Math.random() > 0.5) {
+                    btns[0].innerText = randNum;
+                    btns[1].innerText = "1";
+                } else {
+                    btns[0].innerText = "1";
+                    btns[1].innerText = randNum;
+                }
+            } else {
+                title.innerText = config.lang === 'zh' ? '測試: 0 的乘法' : 'Quiz: Rule of 0';
+                problem.innerText = `${randNum} × 0 = ?`;
+                currentAnswer = 0;
+                 // Set buttons randomly
+                 if(Math.random() > 0.5) {
+                    btns[0].innerText = "0";
+                    btns[1].innerText = randNum;
+                } else {
+                    btns[0].innerText = randNum;
+                    btns[1].innerText = "0";
+                }
+            }
+        }
+
+        function checkAnswer(btn) {
+            const val = parseInt(btn.innerText);
+            if(val === currentAnswer) {
+                btn.classList.remove('bg-blue-100', 'text-blue-800');
+                btn.classList.add('bg-green-500', 'text-white');
+                setTimeout(() => closeModal(), 600);
+            } else {
+                btn.classList.remove('bg-blue-100', 'text-blue-800');
+                btn.classList.add('bg-red-500', 'text-white', 'shake');
+                setTimeout(() => {
+                    btn.classList.remove('bg-red-500', 'text-white', 'shake');
+                    btn.classList.add('bg-blue-100', 'text-blue-800');
+                }, 500);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+            // Reset button styles
+            document.querySelectorAll('.modal-opt').forEach(btn => {
+                btn.className = "modal-opt bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-4 rounded-xl text-xl transition";
+            });
+        }
+
+        // Initialize
+        init();
+
+    </script>
+</body>
+</html>
