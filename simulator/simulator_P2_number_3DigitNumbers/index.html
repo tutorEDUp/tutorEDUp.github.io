@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三位數學習模擬器 | 3-Digit Number Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Fredoka:wght@400;600&display=swap');
+
+        body {
+            font-family: 'Fredoka', 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+            user-select: none; /* 防止在 iPad 上誤選文字 */
+        }
+
+        /* iPad 觸控優化 */
+        .btn-touch {
+            transition: transform 0.1s, background-color 0.2s;
+        }
+        .btn-touch:active {
+            transform: scale(0.95);
+        }
+
+        /* 積木視覺化樣式 - 嚴格比例修正 (Base: 15px) 
+           1 Unit = 15x15
+           1 Ten  = 15x150 (10 Units)
+           1 Hundred = 150x150 (100 Units / 10 Tens)
+        */
+        
+        .block-hundred {
+            width: 150px;
+            height: 150px;
+            background-color: #4ade80;
+            /* 網格線：每 15px 一條，模擬 10x10 排列 */
+            background-image: 
+                linear-gradient(#22c55e 1px, transparent 1px),
+                linear-gradient(90deg, #22c55e 1px, transparent 1px);
+            background-size: 15px 15px;
+            border: 2px solid #15803d;
+            border-radius: 4px;
+            box-shadow: 4px 4px 0px #14532d;
+            flex-shrink: 0; /* 防止被擠壓 */
+        }
+        
+        .block-ten {
+            width: 15px;
+            height: 150px;
+            background-color: #60a5fa;
+            /* 分隔線：每 15px 一條，模擬 10 個堆疊 */
+            background-image: linear-gradient(to bottom, #3b82f6 1px, transparent 1px);
+            background-size: 100% 15px;
+            border: 1px solid #1d4ed8;
+            border-radius: 2px;
+            box-shadow: 3px 3px 0px #1e3a8a;
+            flex-shrink: 0;
+        }
+
+        .block-unit {
+            width: 15px;
+            height: 15px;
+            background-color: #f87171;
+            border: 1px solid #b91c1c;
+            border-radius: 2px; /* 改為方塊，符合 Base 10 blocks 慣例 */
+            box-shadow: 2px 2px 0px #7f1d1d;
+            flex-shrink: 0;
+        }
+
+        /* 隱藏滾動條但保持功能 */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-gray-800">
+
+    <!-- 頂部導航欄 -->
+    <header class="bg-white shadow-md p-4 flex justify-between items-center z-10 shrink-0">
+        <div class="flex items-center gap-4">
+            <!-- Logo 預留區 -->
+            <div class="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden border-2 border-gray-300">
+                <img src="logo.png" alt="Logo" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <span class="text-xs text-gray-500 font-bold hidden text-center px-1">LOGO</span>
+            </div>
+            
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-blue-600" id="app-title">三位數學習模擬器</h1>
+                <p class="text-sm text-gray-500 hidden md:block" id="app-subtitle">數學概念 / 位值 / 大小比較</p>
+            </div>
+        </div>
+
+        <!-- 語言切換 -->
+        <button onclick="toggleLanguage()" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-2 rounded-full font-bold flex items-center gap-2 transition btn-touch">
+            <i class="fas fa-globe"></i>
+            <span id="lang-btn-text">English</span>
+        </button>
+    </header>
+
+    <!-- 主內容區 -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- 左側選單 (iPad 上方 / Notebook 左側) -->
+        <nav class="bg-blue-50 w-full md:w-64 flex md:flex-col shrink-0 border-b md:border-r border-blue-200 overflow-x-auto">
+            <button onclick="switchTab('counting')" class="nav-btn flex-1 p-4 md:py-6 text-center md:text-left hover:bg-blue-100 focus:bg-white focus:text-blue-600 focus:border-l-4 border-blue-600 transition outline-none active-tab flex flex-col md:flex-row items-center gap-3 group" data-tab="counting">
+                <div class="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition">
+                    <i class="fas fa-list-ol"></i>
+                </div>
+                <span class="font-bold text-sm md:text-base" data-i18n="menu_counting">認識數字</span>
+            </button>
+
+            <button onclick="switchTab('placevalue')" class="nav-btn flex-1 p-4 md:py-6 text-center md:text-left hover:bg-blue-100 focus:bg-white focus:text-blue-600 focus:border-l-4 border-blue-600 transition outline-none flex flex-col md:flex-row items-center gap-3 group" data-tab="placevalue">
+                <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition">
+                    <i class="fas fa-cubes"></i>
+                </div>
+                <span class="font-bold text-sm md:text-base" data-i18n="menu_placevalue">位值概念</span>
+            </button>
+
+            <button onclick="switchTab('compare')" class="nav-btn flex-1 p-4 md:py-6 text-center md:text-left hover:bg-blue-100 focus:bg-white focus:text-blue-600 focus:border-l-4 border-blue-600 transition outline-none flex flex-col md:flex-row items-center gap-3 group" data-tab="compare">
+                <div class="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition">
+                    <i class="fas fa-balance-scale"></i>
+                </div>
+                <span class="font-bold text-sm md:text-base" data-i18n="menu_compare">大小比較</span>
+            </button>
+        </nav>
+
+        <!-- 內容顯示區 -->
+        <div class="flex-1 bg-white relative overflow-y-auto p-4 md:p-8">
+            
+            <!-- 1. 認識數字 (Counting) -->
+            <div id="view-counting" class="view-section h-full flex flex-col items-center justify-center max-w-4xl mx-auto space-y-8 animate-fade-in">
+                <h2 class="text-2xl font-bold text-gray-700 mb-4" data-i18n="title_counting">認識 1000 以內的數</h2>
+                
+                <!-- 數字顯示器 -->
+                <div class="bg-gray-800 text-green-400 font-mono text-6xl md:text-8xl px-12 py-6 rounded-xl shadow-inner border-4 border-gray-600 relative">
+                    <span id="counter-display">100</span>
+                    <span class="absolute top-2 right-4 text-xs text-gray-500">MAX: 1000</span>
+                </div>
+
+                <!-- 讀作 -->
+                <div class="text-xl text-gray-600 font-bold bg-gray-100 px-6 py-2 rounded-full">
+                    <span data-i18n="read_as">讀作：</span> <span id="counter-read" class="text-blue-600">一百</span>
+                </div>
+
+                <!-- 控制按鈕網格 -->
+                <div class="grid grid-cols-3 gap-4 w-full max-w-md">
+                    <div class="col-span-3 text-center text-sm text-gray-400 font-bold" data-i18n="control_panel">控制面板</div>
+                    
+                    <button onclick="updateCounter(-100)" class="btn-touch bg-red-100 text-red-600 font-bold py-4 rounded-lg shadow hover:bg-red-200">-100</button>
+                    <button onclick="updateCounter(-10)" class="btn-touch bg-orange-100 text-orange-600 font-bold py-4 rounded-lg shadow hover:bg-orange-200">-10</button>
+                    <button onclick="updateCounter(-1)" class="btn-touch bg-yellow-100 text-yellow-600 font-bold py-4 rounded-lg shadow hover:bg-yellow-200">-1</button>
+
+                    <button onclick="updateCounter(100)" class="btn-touch bg-green-100 text-green-600 font-bold py-4 rounded-lg shadow hover:bg-green-200">+100</button>
+                    <button onclick="updateCounter(10)" class="btn-touch bg-blue-100 text-blue-600 font-bold py-4 rounded-lg shadow hover:bg-blue-200">+10</button>
+                    <button onclick="updateCounter(1)" class="btn-touch bg-purple-100 text-purple-600 font-bold py-4 rounded-lg shadow hover:bg-purple-200">+1</button>
+                </div>
+            </div>
+
+            <!-- 2. 位值概念 (Place Value) -->
+            <div id="view-placevalue" class="view-section hidden h-full flex flex-col max-w-6xl mx-auto animate-fade-in">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-700" data-i18n="title_placevalue">百位的位值概念</h2>
+                    <div class="text-3xl font-bold bg-blue-100 text-blue-800 px-6 py-2 rounded-lg border-2 border-blue-300" id="pv-total-display">123</div>
+                </div>
+
+                <!-- 互動區 -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
+                    
+                    <!-- 百位 -->
+                    <div class="bg-green-50 border-2 border-green-200 rounded-xl p-4 flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-green-800 text-lg" data-i18n="hundreds">百位 (100)</span>
+                            <span class="text-2xl font-bold text-green-600" id="pv-h-count">1</span>
+                        </div>
+                        <input type="range" min="0" max="9" value="1" class="w-full mb-4 accent-green-500 h-6 cursor-pointer" oninput="updatePlaceValue('h', this.value)">
+                        <div class="flex-1 bg-white rounded-lg border border-green-100 p-4 overflow-y-auto hide-scrollbar flex flex-wrap content-start gap-3" id="pv-h-container">
+                            <!-- JS 生成百位積木 -->
+                        </div>
+                    </div>
+
+                    <!-- 十位 -->
+                    <div class="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-blue-800 text-lg" data-i18n="tens">十位 (10)</span>
+                            <span class="text-2xl font-bold text-blue-600" id="pv-t-count">2</span>
+                        </div>
+                        <input type="range" min="0" max="9" value="2" class="w-full mb-4 accent-blue-500 h-6 cursor-pointer" oninput="updatePlaceValue('t', this.value)">
+                        <div class="flex-1 bg-white rounded-lg border border-blue-100 p-4 overflow-y-auto hide-scrollbar flex flex-wrap content-start gap-4" id="pv-t-container">
+                            <!-- JS 生成十位積木 -->
+                        </div>
+                    </div>
+
+                    <!-- 個位 -->
+                    <div class="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-red-800 text-lg" data-i18n="units">個位 (1)</span>
+                            <span class="text-2xl font-bold text-red-600" id="pv-u-count">3</span>
+                        </div>
+                        <input type="range" min="0" max="9" value="3" class="w-full mb-4 accent-red-500 h-6 cursor-pointer" oninput="updatePlaceValue('u', this.value)">
+                        <div class="flex-1 bg-white rounded-lg border border-red-100 p-4 overflow-y-auto hide-scrollbar flex flex-wrap content-start gap-2" id="pv-u-container">
+                            <!-- JS 生成個位積木 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 展開式 -->
+                <div class="mt-4 text-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <span class="text-gray-500 font-bold mr-2" data-i18n="expanded_form">展開式：</span>
+                    <span class="text-xl font-mono" id="pv-expanded">100 + 20 + 3 = 123</span>
+                </div>
+            </div>
+
+            <!-- 3. 大小比較 (Compare) -->
+            <div id="view-compare" class="view-section hidden h-full flex flex-col items-center justify-center animate-fade-in max-w-4xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-700 mb-8" data-i18n="title_compare">三位數的大小比較</h2>
+
+                <div class="flex items-center justify-center gap-4 md:gap-12 w-full mb-12">
+                    <!-- 左數 -->
+                    <div class="flex flex-col items-center">
+                        <div class="text-5xl md:text-7xl font-bold text-blue-600 bg-blue-50 border-4 border-blue-200 rounded-2xl w-32 h-32 md:w-48 md:h-48 flex items-center justify-center shadow-lg transform transition" id="comp-num-left">
+                            354
+                        </div>
+                        <div class="mt-2 text-sm text-gray-400 font-bold">A</div>
+                    </div>
+
+                    <!-- 比較符號 (結果) -->
+                    <div class="flex flex-col gap-4">
+                        <div id="comp-result-icon" class="w-16 h-16 md:w-20 md:h-20 bg-gray-200 rounded-full flex items-center justify-center text-3xl md:text-4xl text-white font-bold shadow-inner">
+                            ?
+                        </div>
+                    </div>
+
+                    <!-- 右數 -->
+                    <div class="flex flex-col items-center">
+                        <div class="text-5xl md:text-7xl font-bold text-purple-600 bg-purple-50 border-4 border-purple-200 rounded-2xl w-32 h-32 md:w-48 md:h-48 flex items-center justify-center shadow-lg transform transition" id="comp-num-right">
+                            345
+                        </div>
+                        <div class="mt-2 text-sm text-gray-400 font-bold">B</div>
+                    </div>
+                </div>
+
+                <!-- 選擇按鈕 -->
+                <div class="grid grid-cols-3 gap-4 md:gap-8 w-full max-w-lg mb-8">
+                    <button onclick="checkComparison('>')" class="btn-touch py-4 bg-white border-2 border-gray-300 rounded-xl shadow-md hover:border-blue-500 hover:text-blue-600 text-3xl font-bold">
+                        &gt;
+                    </button>
+                    <button onclick="checkComparison('=')" class="btn-touch py-4 bg-white border-2 border-gray-300 rounded-xl shadow-md hover:border-green-500 hover:text-green-600 text-3xl font-bold">
+                        =
+                    </button>
+                    <button onclick="checkComparison('<')" class="btn-touch py-4 bg-white border-2 border-gray-300 rounded-xl shadow-md hover:border-purple-500 hover:text-purple-600 text-3xl font-bold">
+                        &lt;
+                    </button>
+                </div>
+
+                <!-- 訊息與重置 -->
+                <div id="comp-message" class="h-8 text-xl font-bold text-center mb-4"></div>
+                
+                <button onclick="newComparison()" class="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-700 btn-touch flex items-center gap-2">
+                    <i class="fas fa-random"></i> <span data-i18n="next_question">下一題</span>
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // --- 資料與狀態管理 ---
+        const i18n = {
+            zh: {
+                app_title: "三位數學習模擬器",
+                app_subtitle: "數學概念 / 位值 / 大小比較",
+                lang_btn: "English",
+                menu_counting: "認識數字",
+                menu_placevalue: "位值概念",
+                menu_compare: "大小比較",
+                title_counting: "認識 1000 以內的數",
+                read_as: "讀作：",
+                control_panel: "控制面板",
+                title_placevalue: "百位的位值概念",
+                hundreds: "百位 (100)",
+                tens: "十位 (10)",
+                units: "個位 (1)",
+                expanded_form: "展開式：",
+                title_compare: "三位數的大小比較",
+                next_question: "下一題",
+                correct: "答對了！太棒了！",
+                wrong: "再試一次喔！",
+                btn_greater: "大於",
+                btn_less: "小於",
+                btn_equal: "等於"
+            },
+            en: {
+                app_title: "3-Digit Number Simulator",
+                app_subtitle: "Concepts / Place Value / Comparison",
+                lang_btn: "中文 (繁體)",
+                menu_counting: "Counting",
+                menu_placevalue: "Place Value",
+                menu_compare: "Comparison",
+                title_counting: "Numbers up to 1000",
+                read_as: "Read as:",
+                control_panel: "Control Panel",
+                title_placevalue: "Place Value Concepts",
+                hundreds: "Hundreds",
+                tens: "Tens",
+                units: "Units",
+                expanded_form: "Expanded Form:",
+                title_compare: "Comparing Numbers",
+                next_question: "Next Question",
+                correct: "Correct! Great job!",
+                wrong: "Try again!",
+                btn_greater: "Greater",
+                btn_less: "Less",
+                btn_equal: "Equal"
+            }
+        };
+
+        const numberToChinese = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+        const units = ["", "十", "百"];
+
+        let currentLang = 'zh';
+        let counterValue = 100;
+        let pvData = { h: 1, t: 2, u: 3 };
+        let compareData = { left: 0, right: 0 };
+
+        // --- 初始化 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateLanguage();
+            renderCounter();
+            renderPlaceValue();
+            newComparison();
+            
+            // 預設 Tab 樣式
+            document.querySelector('.nav-btn[data-tab="counting"]').focus();
+        });
+
+        // --- 導航與語言 ---
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            updateLanguage();
+            // 重新渲染依賴語言的組件
+            renderCounter(); 
+            document.getElementById('comp-message').innerText = ""; // 清空比較訊息
+        }
+
+        function updateLanguage() {
+            const data = i18n[currentLang];
+            document.getElementById('lang-btn-text').innerText = data.lang_btn;
+            document.getElementById('app-title').innerText = data.app_title;
+            document.getElementById('app-subtitle').innerText = data.app_subtitle;
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (data[key]) el.innerText = data[key];
+            });
+        }
+
+        function switchTab(tabName) {
+            // 隱藏所有視圖
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            // 顯示選中視圖
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            
+            // 更新按鈕樣式
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                if(btn.dataset.tab === tabName) {
+                    btn.classList.add('bg-white', 'border-l-4', 'text-blue-600');
+                } else {
+                    btn.classList.remove('bg-white', 'border-l-4', 'text-blue-600');
+                }
+            });
+        }
+
+        // --- 功能 1: 認識數字 (Counting) ---
+        function updateCounter(change) {
+            let newVal = counterValue + change;
+            if (newVal < 0) newVal = 0;
+            if (newVal > 1000) newVal = 1000;
+            counterValue = newVal;
+            renderCounter();
+        }
+
+        function renderCounter() {
+            document.getElementById('counter-display').innerText = counterValue;
+            
+            // 數字轉中文/英文讀法
+            let readText = "";
+            if (currentLang === 'zh') {
+                readText = numberToChineseText(counterValue);
+            } else {
+                readText = numberToEnglishText(counterValue);
+            }
+            document.getElementById('counter-read').innerText = readText;
+        }
+
+        function numberToChineseText(num) {
+            if (num === 1000) return "一千";
+            if (num === 0) return "零";
+            
+            const str = num.toString();
+            let result = "";
+            
+            const h = Math.floor(num / 100);
+            const t = Math.floor((num % 100) / 10);
+            const u = num % 10;
+
+            if (h > 0) result += numberToChinese[h] + "百";
+            if (t > 0) {
+                result += numberToChinese[t] + "十";
+            } else if (h > 0 && u > 0) {
+                result += "零"; // 例如 105 -> 一百零五
+            }
+            if (u > 0) result += numberToChinese[u];
+
+            return result;
+        }
+
+        function numberToEnglishText(num) {
+            return num.toString(); // 簡單處理，進階可引入 number-to-words 庫
+        }
+
+
+        // --- 功能 2: 位值概念 (Place Value) ---
+        function updatePlaceValue(type, value) {
+            pvData[type] = parseInt(value);
+            renderPlaceValue();
+        }
+
+        function renderPlaceValue() {
+            // 更新數字顯示
+            document.getElementById('pv-h-count').innerText = pvData.h;
+            document.getElementById('pv-t-count').innerText = pvData.t;
+            document.getElementById('pv-u-count').innerText = pvData.u;
+
+            const total = (pvData.h * 100) + (pvData.t * 10) + pvData.u;
+            document.getElementById('pv-total-display').innerText = total;
+
+            // 展開式
+            document.getElementById('pv-expanded').innerText = 
+                `${pvData.h * 100} + ${pvData.t * 10} + ${pvData.u} = ${total}`;
+
+            // 生成圖形積木
+            renderBlocks('pv-h-container', pvData.h, 'block-hundred');
+            renderBlocks('pv-t-container', pvData.t, 'block-ten');
+            renderBlocks('pv-u-container', pvData.u, 'block-unit');
+        }
+
+        function renderBlocks(containerId, count, className) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const div = document.createElement('div');
+                div.className = className + ' animate-pop';
+                // 簡單動畫
+                div.style.animation = `popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) ${i * 0.05}s forwards`;
+                div.style.opacity = 0;
+                div.style.transform = 'scale(0.5)';
+                container.appendChild(div);
+            }
+        }
+
+        // --- 功能 3: 大小比較 (Comparison) ---
+        function newComparison() {
+            // 生成 100-999 的隨機數
+            compareData.left = Math.floor(Math.random() * 900) + 100;
+            
+            // 為了增加難度，有 30% 機率讓兩個數字非常接近或相等
+            const diff = Math.random();
+            if (diff < 0.2) {
+                compareData.right = compareData.left;
+            } else if (diff < 0.4) {
+                compareData.right = compareData.left + (Math.floor(Math.random() * 20) - 10);
+            } else {
+                compareData.right = Math.floor(Math.random() * 900) + 100;
+            }
+            
+            // 修正邊界
+            if(compareData.right < 100) compareData.right = 100;
+            if(compareData.right > 999) compareData.right = 999;
+
+            document.getElementById('comp-num-left').innerText = compareData.left;
+            document.getElementById('comp-num-right').innerText = compareData.right;
+            
+            // 重置狀態
+            const resultIcon = document.getElementById('comp-result-icon');
+            resultIcon.innerHTML = "?";
+            resultIcon.className = "w-16 h-16 md:w-20 md:h-20 bg-gray-200 rounded-full flex items-center justify-center text-3xl md:text-4xl text-white font-bold shadow-inner";
+            document.getElementById('comp-message').innerText = "";
+            
+            // 移除高亮
+            document.getElementById('comp-num-left').classList.remove('scale-110', 'border-yellow-400');
+            document.getElementById('comp-num-right').classList.remove('scale-110', 'border-yellow-400');
+        }
+
+        function checkComparison(operator) {
+            const l = compareData.left;
+            const r = compareData.right;
+            let isCorrect = false;
+
+            if (operator === '>' && l > r) isCorrect = true;
+            if (operator === '<' && l < r) isCorrect = true;
+            if (operator === '=' && l === r) isCorrect = true;
+
+            const msgEl = document.getElementById('comp-message');
+            const iconEl = document.getElementById('comp-result-icon');
+
+            if (isCorrect) {
+                msgEl.innerText = i18n[currentLang].correct;
+                msgEl.className = "h-8 text-xl font-bold text-center mb-4 text-green-600 animate-bounce";
+                
+                iconEl.innerText = operator;
+                iconEl.className = "w-16 h-16 md:w-20 md:h-20 bg-green-500 rounded-full flex items-center justify-center text-3xl md:text-4xl text-white font-bold shadow-lg transform rotate-0 transition";
+
+                // 高亮較大的數字 (如果是相等，則不高亮)
+                if (operator !== '=') {
+                    const idToHighlight = l > r ? 'comp-num-left' : 'comp-num-right';
+                    document.getElementById(idToHighlight).classList.add('scale-110', 'border-yellow-400');
+                }
+
+            } else {
+                msgEl.innerText = i18n[currentLang].wrong;
+                msgEl.className = "h-8 text-xl font-bold text-center mb-4 text-red-500 shake";
+                setTimeout(() => msgEl.classList.remove('shake'), 500);
+            }
+        }
+    </script>
+
+    <style>
+        /* CSS 動畫補充 */
+        @keyframes popIn {
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</body>
+</html>
