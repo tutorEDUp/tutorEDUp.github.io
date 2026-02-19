@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>角(一) Angles (I) - Interactive Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 禁止選取文字，讓操作更像 App */
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* 防止拖曳時觸發頁面捲動 */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        /* 自定義 Canvas 游標 */
+        canvas {
+            cursor: pointer;
+        }
+
+        .active-tab {
+            background-color: #3b82f6; /* Blue-500 */
+            color: white;
+            font-weight: bold;
+        }
+
+        /* iPad 優化：增加按鈕點擊區域 */
+        .touch-btn {
+            min-height: 48px; 
+            min-width: 48px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header: Logo & Controls -->
+    <header class="bg-white shadow-md z-10 p-4 flex justify-between items-center h-16 shrink-0">
+        <div class="flex items-center gap-4">
+            <!-- Logo Placeholder with Fallback -->
+            <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center overflow-hidden border border-indigo-200">
+                <img src="logo.png" alt="Logo" class="h-full w-full object-cover" onerror="this.style.display='none'; this.parentNode.innerText='🏫'">
+            </div>
+            <h1 class="text-xl md:text-2xl font-bold text-indigo-900" data-i18n="appTitle">角(一) Angles (I)</h1>
+        </div>
+        
+        <button id="langBtn" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 px-4 py-2 rounded-full font-medium transition-colors shadow-sm text-sm md:text-base">
+            EN / 中文
+        </button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 relative flex flex-col md:flex-row h-full overflow-hidden">
+        
+        <!-- Sidebar Navigation (Desktop) / Top Tabs (Mobile/iPad) -->
+        <nav class="md:w-64 bg-white border-r border-slate-200 flex md:flex-col shrink-0 overflow-x-auto md:overflow-visible z-10">
+            <button onclick="app.switchTab('concept')" id="tab-concept" class="nav-btn flex-1 md:flex-none p-4 text-center md:text-left hover:bg-slate-50 border-b-4 md:border-b-0 md:border-l-4 border-transparent transition-all active-tab">
+                <div class="text-lg font-bold" data-i18n="tabConcept">認識角</div>
+                <div class="text-xs text-slate-500 mt-1" data-i18n="descConcept">定義與數值</div>
+            </button>
+            <button onclick="app.switchTab('compare')" id="tab-compare" class="nav-btn flex-1 md:flex-none p-4 text-center md:text-left hover:bg-slate-50 border-b-4 md:border-b-0 md:border-l-4 border-transparent transition-all">
+                <div class="text-lg font-bold" data-i18n="tabCompare">比較大小</div>
+                <div class="text-xs text-slate-500 mt-1" data-i18n="descCompare">數值比較</div>
+            </button>
+            <button onclick="app.switchTab('rightangle')" id="tab-rightangle" class="nav-btn flex-1 md:flex-none p-4 text-center md:text-left hover:bg-slate-50 border-b-4 md:border-b-0 md:border-l-4 border-transparent transition-all">
+                <div class="text-lg font-bold" data-i18n="tabRight">認識直角</div>
+                <div class="text-xs text-slate-500 mt-1" data-i18n="descRight">使用三角尺</div>
+            </button>
+        </nav>
+
+        <!-- Canvas Container -->
+        <div class="flex-1 relative bg-slate-100 flex flex-col items-center justify-center p-2 md:p-6" id="canvas-container">
+            
+            <!-- Instructions Overlay -->
+            <div id="instruction-box" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur px-6 py-3 rounded-2xl shadow-lg border border-indigo-100 text-center z-10 w-11/12 md:w-auto transition-all">
+                <p class="text-lg font-medium text-indigo-700" id="instruction-text">拖曳紅點來改變角的大小</p>
+            </div>
+
+            <!-- The Interactive Canvas -->
+            <canvas id="mainCanvas" class="bg-white rounded-3xl shadow-xl w-full h-full max-w-5xl max-h-[80vh] border border-slate-200"></canvas>
+
+            <!-- Control Panel (Bottom Floating) -->
+            <div id="controls-panel" class="absolute bottom-6 flex gap-3 z-10">
+                <!-- Dynamic buttons injected by JS -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * Localization Data
+         */
+        const i18nData = {
+            zh: {
+                appTitle: "角(一) 基礎概念",
+                tabConcept: "認識角",
+                descConcept: "定義與數值",
+                tabCompare: "比較大小",
+                descCompare: "數值比較",
+                tabRight: "認識直角",
+                descRight: "直角與三角尺",
+                instConcept: "試著拖曳🔴紅點，觀察角度大小與數值的變化。",
+                instCompare: "拖曳調整角度。點擊「重疊」比較數值與大小。",
+                instRight: "這是一個直角嗎？拖曳三角尺去測量看看！",
+                lblVertex: "頂點",
+                lblSide: "邊",
+                lblBig: "較大",
+                lblSmall: "較小",
+                lblEqual: "相等",
+                btnReset: "重置",
+                btnOverlay: "重疊比較",
+                btnSeparate: "分開顯示",
+                btnToggleSquare: "顯示/隱藏 三角尺",
+                msgIsRight: "這是直角 (90°)！",
+                msgNotRight: "這不是直角",
+                rightAngleLabel: "直角"
+            },
+            en: {
+                appTitle: "Angles (I) Basics",
+                tabConcept: "Concept",
+                descConcept: "Definition & Value",
+                tabCompare: "Comparing",
+                descCompare: "Values & Size",
+                tabRight: "Right Angle",
+                descRight: "Using Set Square",
+                instConcept: "Drag the 🔴 red dot to see how the degree value changes.",
+                instCompare: "Drag angles. Click 'Overlay' to compare values.",
+                instRight: "Is this a Right Angle? Drag the set square to check!",
+                lblVertex: "Vertex",
+                lblSide: "Side",
+                lblBig: "Bigger",
+                lblSmall: "Smaller",
+                lblEqual: "Equal",
+                btnReset: "Reset",
+                btnOverlay: "Overlay",
+                btnSeparate: "Separate",
+                btnToggleSquare: "Toggle Set Square",
+                msgIsRight: "It's a Right Angle (90°)!",
+                msgNotRight: "Not a Right Angle",
+                rightAngleLabel: "Right Angle"
+            }
+        };
+
+        /**
+         * Application State & Logic
+         */
+        class App {
+            constructor() {
+                this.lang = 'zh';
+                this.currentTab = 'concept';
+                this.canvas = document.getElementById('mainCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.container = document.getElementById('canvas-container');
+                
+                // Entities on canvas
+                this.shapes = []; 
+                this.interactionMode = 'concept'; // concept, compare, rightangle
+                this.overlayMode = false; // For comparison
+                this.showSetSquare = false; // For right angle
+                
+                // Dragging state
+                this.draggedPoint = null;
+                this.draggedShape = null; // For moving entire shapes
+                this.dragOffset = {x:0, y:0};
+
+                this.init();
+            }
+
+            init() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // Event Listeners
+                document.getElementById('langBtn').addEventListener('click', () => this.toggleLang());
+                
+                // Pointer Events (Mouse + Touch)
+                this.canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+                window.addEventListener('pointermove', (e) => this.onPointerMove(e));
+                window.addEventListener('pointerup', (e) => this.onPointerUp(e));
+
+                // Initial Load
+                this.loadScene('concept');
+                this.updateUI();
+                
+                // Animation Loop
+                requestAnimationFrame(() => this.animate());
+            }
+
+            toggleLang() {
+                this.lang = this.lang === 'zh' ? 'en' : 'zh';
+                this.updateUI();
+            }
+
+            updateUI() {
+                // Update Text
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.getAttribute('data-i18n');
+                    if (i18nData[this.lang][key]) {
+                        el.innerText = i18nData[this.lang][key];
+                    }
+                });
+
+                // Update Instruction Box based on mode
+                const instText = document.getElementById('instruction-text');
+                if (this.interactionMode === 'concept') instText.innerText = i18nData[this.lang].instConcept;
+                if (this.interactionMode === 'compare') instText.innerText = i18nData[this.lang].instCompare;
+                if (this.interactionMode === 'rightangle') instText.innerText = i18nData[this.lang].instRight;
+
+                // Controls
+                this.renderControls();
+            }
+
+            renderControls() {
+                const panel = document.getElementById('controls-panel');
+                panel.innerHTML = ''; // Clear
+
+                if (this.interactionMode === 'compare') {
+                    const btn = document.createElement('button');
+                    btn.className = "bg-blue-600 text-white px-6 py-3 rounded-xl shadow-lg font-bold touch-btn active:scale-95 transition-transform";
+                    btn.innerText = this.overlayMode ? i18nData[this.lang].btnSeparate : i18nData[this.lang].btnOverlay;
+                    btn.onclick = () => {
+                        this.overlayMode = !this.overlayMode;
+                        this.compareAnglesVisuals();
+                        this.updateUI();
+                    };
+                    panel.appendChild(btn);
+                } 
+                else if (this.interactionMode === 'rightangle') {
+                    const btn = document.createElement('button');
+                    btn.className = "bg-orange-500 text-white px-6 py-3 rounded-xl shadow-lg font-bold touch-btn active:scale-95 transition-transform";
+                    btn.innerText = i18nData[this.lang].btnToggleSquare;
+                    btn.onclick = () => {
+                        this.showSetSquare = !this.showSetSquare;
+                        // Reset set square position
+                        if(this.showSetSquare) {
+                            this.setSquarePos = {x: this.canvas.width/2 + 100, y: this.canvas.height/2};
+                            this.setSquareAngle = 0;
+                        }
+                    };
+                    panel.appendChild(btn);
+                }
+
+                // Reset Button (Always available for Compare/RightAngle to fix mess)
+                const resetBtn = document.createElement('button');
+                resetBtn.className = "bg-white text-slate-700 border border-slate-300 px-4 py-3 rounded-xl shadow font-medium touch-btn ml-2 active:bg-slate-100";
+                resetBtn.innerText = "↺ " + i18nData[this.lang].btnReset;
+                resetBtn.onclick = () => this.loadScene(this.interactionMode);
+                panel.appendChild(resetBtn);
+            }
+
+            switchTab(tabName) {
+                // Update CSS
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.remove('active-tab', 'border-blue-500', 'bg-blue-50');
+                    btn.classList.remove('border-l-4', 'border-b-4');
+                    btn.classList.add('border-transparent');
+                });
+                
+                const activeBtn = document.getElementById(`tab-${tabName}`);
+                activeBtn.classList.add('active-tab');
+                
+                this.currentTab = tabName;
+                this.loadScene(tabName);
+                this.updateUI();
+            }
+
+            resizeCanvas() {
+                const rect = this.container.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                // Redraw immediately happens in animate loop
+                if (this.interactionMode) this.loadScene(this.interactionMode); // Reset positions on drastic resize
+            }
+
+            // --- Scene Management ---
+
+            loadScene(mode) {
+                this.interactionMode = mode;
+                this.shapes = [];
+                this.overlayMode = false;
+                this.showSetSquare = false;
+                const cx = this.canvas.width / 2;
+                const cy = this.canvas.height / 2;
+
+                if (mode === 'concept') {
+                    // One big angle
+                    const angle = new Angle(cx - 100, cy + 100, 250, 0, -45, '#3b82f6', true);
+                    angle.showValue = true; // Show numerical value
+                    this.shapes.push(angle);
+                } 
+                else if (mode === 'compare') {
+                    // Two angles
+                    const a1 = new Angle(cx - 200, cy + 100, 200, 0, -30, '#3b82f6', true, "A");
+                    const a2 = new Angle(cx + 150, cy + 100, 200, 0, -60, '#ef4444', true, "B");
+                    a1.showValue = true;
+                    a2.showValue = true;
+                    this.shapes.push(a1);
+                    this.shapes.push(a2);
+                } 
+                else if (mode === 'rightangle') {
+                    // One random angle (initially not 90)
+                    this.shapes.push(new Angle(cx - 50, cy + 100, 220, 0, -80, '#10b981', true));
+                    // Set square state
+                    this.setSquarePos = {x: cx + 150, y: cy};
+                    this.setSquareAngle = 0;
+                    this.showSetSquare = true;
+                }
+            }
+
+            compareAnglesVisuals() {
+                if (this.overlayMode && this.shapes.length === 2) {
+                    // Move Angle B to Angle A's position
+                    const base = this.shapes[0]; // Blue
+                    const mover = this.shapes[1]; // Red
+                    
+                    mover.animateTo(base.x, base.y, base.baseRotation);
+                } else if (!this.overlayMode && this.shapes.length === 2) {
+                    // Reset positions
+                    const cx = this.canvas.width / 2;
+                    const cy = this.canvas.height / 2;
+                    this.shapes[0].animateTo(cx - 200, cy + 100, 0);
+                    this.shapes[1].animateTo(cx + 150, cy + 100, 0);
+                }
+            }
+
+            // --- Input Handling ---
+
+            getPointerPos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+
+            onPointerDown(e) {
+                const pos = this.getPointerPos(e);
+                
+                // 1. Check Set Square Drag (Priority)
+                if (this.interactionMode === 'rightangle' && this.showSetSquare) {
+                    if (this.isPointInSetSquare(pos)) {
+                        this.draggedShape = 'setsquare';
+                        this.dragOffset = { x: pos.x - this.setSquarePos.x, y: pos.y - this.setSquarePos.y };
+                        return;
+                    }
+                }
+
+                // 2. Check Angles Control Points
+                for (let shape of this.shapes) {
+                    const control = shape.getControlPoint();
+                    if (dist(pos, control) < 30) {
+                        this.draggedPoint = shape;
+                        return;
+                    }
+                }
+
+                // 3. Check Angle Drag (Move whole shape - primarily for comparison or just fun)
+                if (this.interactionMode === 'compare' && !this.overlayMode) {
+                    for (let shape of this.shapes) {
+                        if (dist(pos, {x: shape.x, y:shape.y}) < 30) {
+                             // Dragging vertex (optional future feature)
+                        }
+                    }
+                }
+            }
+
+            onPointerMove(e) {
+                const pos = this.getPointerPos(e);
+
+                if (this.draggedShape === 'setsquare') {
+                    this.setSquarePos = {
+                        x: pos.x - this.dragOffset.x,
+                        y: pos.y - this.dragOffset.y
+                    };
+                }
+                else if (this.draggedPoint) {
+                    // Calculate angle from vertex to mouse
+                    const dx = pos.x - this.draggedPoint.x;
+                    const dy = pos.y - this.draggedPoint.y;
+                    let angle = Math.atan2(dy, dx);
+                    
+                    // Normalize relative to base rotation
+                    let relativeAngle = angle - this.draggedPoint.baseRotation;
+                    
+                    // Limit angle between -180 and 180 to avoid flipping too wildly, 
+                    // or just keep as is.
+                    // Let's cap it slightly to prevent full overlap glitch
+                    // if (Math.abs(relativeAngle) < 0.05) relativeAngle = 0.05 * Math.sign(relativeAngle || 1);
+
+                    // Snap to Right Angle logic in Scene 3
+                    if (this.interactionMode === 'rightangle') {
+                        const deg = (relativeAngle * 180 / Math.PI);
+                        // Snap if close to -90 (upwards)
+                        if (Math.abs(deg - (-90)) < 5) relativeAngle = -Math.PI/2; 
+                        // Snap if close to 90 (downwards)
+                        if (Math.abs(deg - 90) < 5) relativeAngle = Math.PI/2;
+                    }
+
+                    this.draggedPoint.currentAngle = relativeAngle;
+                }
+            }
+
+            onPointerUp(e) {
+                this.draggedPoint = null;
+                this.draggedShape = null;
+            }
+
+            isPointInSetSquare(pos) {
+                // Simple bounding box check approx for the triangle
+                const sx = this.setSquarePos.x;
+                const sy = this.setSquarePos.y;
+                return (pos.x > sx && pos.x < sx + 150 && pos.y < sy && pos.y > sy - 150);
+            }
+
+            // --- Rendering ---
+
+            animate() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Update Animations
+                this.shapes.forEach(s => s.update());
+
+                // Draw Grid (Subtle)
+                this.drawGrid();
+
+                // Draw Shapes
+                this.shapes.forEach(shape => {
+                    shape.draw(this.ctx, this.lang, this.interactionMode);
+                });
+
+                // Comparison Feedback
+                if (this.interactionMode === 'compare') {
+                    this.drawComparisonResult();
+                }
+
+                // Draw Set Square
+                if (this.interactionMode === 'rightangle' && this.showSetSquare) {
+                    this.drawSetSquare();
+                }
+
+                requestAnimationFrame(() => this.animate());
+            }
+
+            drawGrid() {
+                this.ctx.strokeStyle = '#e2e8f0';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                for(let x=0; x<this.canvas.width; x+=40) { this.ctx.moveTo(x,0); this.ctx.lineTo(x,this.canvas.height); }
+                for(let y=0; y<this.canvas.height; y+=40) { this.ctx.moveTo(0,y); this.ctx.lineTo(this.canvas.width,y); }
+                this.ctx.stroke();
+            }
+
+            drawSetSquare() {
+                const ctx = this.ctx;
+                const x = this.setSquarePos.x;
+                const y = this.setSquarePos.y;
+                const size = 180;
+
+                ctx.save();
+                ctx.translate(x, y);
+                // Draw Triangle Ruler
+                ctx.fillStyle = 'rgba(251, 191, 36, 0.6)'; // Amber semi-transparent
+                ctx.strokeStyle = '#d97706';
+                ctx.lineWidth = 2;
+                
+                ctx.beginPath();
+                ctx.moveTo(0, 0); // Corner (90 deg)
+                ctx.lineTo(size, 0);
+                ctx.lineTo(0, -size);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner cutout
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.beginPath();
+                ctx.moveTo(20, -20);
+                ctx.lineTo(size - 60, -20);
+                ctx.lineTo(20, -size + 60);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Marks
+                ctx.fillStyle = '#92400e';
+                ctx.font = "14px Arial";
+                ctx.fillText("90°", 10, -10);
+
+                // Handle Indicator
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.beginPath();
+                ctx.arc(size/3, -size/3, 20, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            drawComparisonResult() {
+                // Get Angles
+                const angleA = Math.round(Math.abs(this.shapes[0].currentAngle * 180 / Math.PI));
+                const angleB = Math.round(Math.abs(this.shapes[1].currentAngle * 180 / Math.PI));
+                
+                let text = "";
+                let subtext = "";
+                
+                // Determine symbol
+                let symbol = "=";
+                if (angleA > angleB) symbol = ">";
+                if (angleA < angleB) symbol = "<";
+
+                text = `A (${angleA}°) ${symbol} B (${angleB}°)`;
+
+                this.ctx.fillStyle = "white";
+                this.ctx.strokeStyle = "#333";
+                this.ctx.lineWidth = 1;
+                this.ctx.font = "bold 24px Arial";
+                const metrics = this.ctx.measureText(text);
+                
+                // Position logic: If overlay, put at bottom. If split, put in middle top
+                const cx = this.canvas.width/2;
+                const cy = this.overlayMode ? this.canvas.height - 120 : 60;
+
+                this.ctx.beginPath();
+                this.ctx.roundRect(cx - metrics.width/2 - 20, cy - 40, metrics.width + 40, 60, 15);
+                this.ctx.fill();
+                this.ctx.stroke();
+
+                this.ctx.fillStyle = "#1e293b";
+                this.ctx.textAlign = "center";
+                this.ctx.fillText(text, cx, cy);
+                this.ctx.textAlign = "start"; // Reset
+            }
+        }
+
+        /**
+         * Angle Class
+         */
+        class Angle {
+            constructor(x, y, length, baseRotation, initialDeg, color, interactive, label) {
+                this.x = x;
+                this.y = y;
+                this.targetX = x; // For animation
+                this.targetY = y;
+                this.length = length;
+                this.baseRotation = baseRotation; // Radians
+                this.currentAngle = initialDeg * (Math.PI / 180); // Relative to base
+                this.color = color;
+                this.interactive = interactive;
+                this.label = label || "";
+                this.showValue = false; // Flag to show degrees
+            }
+
+            animateTo(x, y, baseRot) {
+                this.targetX = x;
+                this.targetY = y;
+            }
+
+            update() {
+                // Simple lerp for smooth movement
+                this.x += (this.targetX - this.x) * 0.1;
+                this.y += (this.targetY - this.y) * 0.1;
+            }
+
+            getControlPoint() {
+                return {
+                    x: this.x + Math.cos(this.baseRotation + this.currentAngle) * this.length,
+                    y: this.y + Math.sin(this.baseRotation + this.currentAngle) * this.length
+                };
+            }
+
+            draw(ctx, lang, mode) {
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                // 1. Draw Fill Arc (The "Opening")
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                let start = this.baseRotation;
+                let end = this.baseRotation + this.currentAngle;
+                
+                // Determine radius for the fill
+                const arcRadius = this.length * 0.4;
+
+                ctx.arc(this.x, this.y, arcRadius, start, end, this.currentAngle < 0);
+                ctx.lineTo(this.x, this.y);
+                ctx.fillStyle = this.color + "33"; // 20% opacity hex
+                ctx.fill();
+
+                // 2. Draw Arc Border (The curved line)
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, arcRadius, start, end, this.currentAngle < 0);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // 3. Draw Base Ray
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + Math.cos(this.baseRotation) * this.length, this.y + Math.sin(this.baseRotation) * this.length);
+                ctx.strokeStyle = '#64748b'; // Slate 500
+                ctx.lineWidth = 6;
+                ctx.stroke();
+
+                // 4. Draw Movable Ray
+                const cp = this.getControlPoint();
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(cp.x, cp.y);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 6;
+                ctx.stroke();
+
+                // 5. Draw Vertex
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#1e293b';
+                ctx.fill();
+
+                // 6. Draw Control Handle
+                if (this.interactive) {
+                    ctx.beginPath();
+                    ctx.arc(cp.x, cp.y, 15, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ef4444'; // Red handle
+                    ctx.fill();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+
+                // 7. Text Labels
+                ctx.fillStyle = '#1e293b';
+                ctx.font = "16px sans-serif";
+                
+                // Label A or B
+                if (this.label) {
+                    ctx.font = "bold 24px sans-serif";
+                    ctx.fillStyle = this.color;
+                    ctx.fillText(this.label, this.x - 40, this.y - 10);
+                }
+
+                // Show Degrees Value
+                if (this.showValue) {
+                    const degrees = Math.round(Math.abs(this.currentAngle * 180 / Math.PI));
+                    const midAngle = this.baseRotation + this.currentAngle / 2;
+                    const textDist = arcRadius + 40;
+                    const tx = this.x + Math.cos(midAngle) * textDist;
+                    const ty = this.y + Math.sin(midAngle) * textDist;
+                    
+                    ctx.font = "bold 20px monospace";
+                    ctx.fillStyle = "#1e293b";
+                    ctx.fillText(`${degrees}°`, tx - 15, ty);
+                }
+
+                // Concept Mode Labels
+                if (mode === 'concept') {
+                    ctx.font = "16px sans-serif";
+                    ctx.fillStyle = "#64748b";
+                    // Label "Side" (Fixed on base ray)
+                    ctx.fillText(i18nData[lang].lblSide, this.x + 80, this.y + 25);
+                    // Label "Vertex"
+                    ctx.fillText(i18nData[lang].lblVertex, this.x - 50, this.y + 25);
+                }
+
+                // Right Angle Check
+                if (mode === 'rightangle') {
+                    // Check if 90 degrees (approx)
+                    const deg = Math.abs(this.currentAngle * 180 / Math.PI);
+                    if (Math.abs(deg - 90) < 2) {
+                        // Draw square symbol
+                        const size = 30;
+                        const angle = this.currentAngle > 0 ? 1 : -1; 
+                        // Simplified square drawing assuming horizontal base
+                        ctx.beginPath();
+                        ctx.strokeStyle = '#000';
+                        ctx.lineWidth = 2;
+                        // Determine direction
+                        const dirY = this.currentAngle > 0 ? 1 : -1;
+                        ctx.moveTo(this.x + size, this.y);
+                        ctx.lineTo(this.x + size, this.y + size * dirY);
+                        ctx.lineTo(this.x, this.y + size * dirY);
+                        ctx.stroke();
+                        
+                        ctx.fillStyle = "#10b981";
+                        ctx.font = "bold 18px sans-serif";
+                        ctx.fillText(i18nData[lang].rightAngleLabel, this.x + 20, this.y - 40);
+                    }
+                }
+            }
+        }
+
+        // Helper
+        function dist(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        // Initialize
+        const app = new App();
+
+    </script>
+</body>
+</html>
