@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>象形圖 (一) Pictograms (I)</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Nunito', 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+            touch-action: manipulation; /* Improves touch response */
+        }
+        
+        /* Custom scrollbar for table containers */
+        .chart-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .icon-item {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .icon-enter {
+            animation: popIn 0.4s forwards;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            80% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Specific iPad/Tablet optimizations */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            .container {
+                max-width: 95%;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col">
+
+    <!-- Navigation / Header -->
+    <nav class="bg-white shadow-md p-4 z-10">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <!-- Logo Placeholder -->
+                <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                    <img src="logo.png" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'" alt="Logo" class="w-full h-full object-contain">
+                    <span class="text-xs text-gray-400 hidden">Logo</span>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold text-blue-600" data-i18n="appTitle">象形圖 (一)</h1>
+                    <p class="text-xs text-slate-500" data-i18n="appSubtitle">一個圖形代表 1 個單位</p>
+                </div>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="setLang('zh')" class="px-3 py-1 rounded border-2 border-blue-100 hover:bg-blue-50 text-sm font-bold transition-colors lang-btn" id="btn-zh">中文</button>
+                <button onclick="setLang('en')" class="px-3 py-1 rounded border-2 border-blue-100 hover:bg-blue-50 text-sm font-bold transition-colors lang-btn" id="btn-en">Eng</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow overflow-y-auto p-4 md:p-6">
+        <div class="max-w-5xl mx-auto space-y-6">
+
+            <!-- Mode Switcher -->
+            <div class="flex justify-center mb-6">
+                <div class="bg-white p-1 rounded-xl shadow-sm border border-slate-200 inline-flex">
+                    <button onclick="switchMode('read')" id="tab-read" class="px-6 py-3 rounded-lg text-lg font-bold transition-all duration-300 bg-blue-500 text-white shadow-md">
+                        <i class="fas fa-book-open mr-2"></i><span data-i18n="modeRead">閱讀圖表</span>
+                    </button>
+                    <button onclick="switchMode('create')" id="tab-create" class="px-6 py-3 rounded-lg text-lg font-bold transition-all duration-300 text-slate-500 hover:bg-slate-50">
+                        <i class="fas fa-pencil-alt mr-2"></i><span data-i18n="modeCreate">製作圖表</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SECTION: READING PICTOGRAMS -->
+            <div id="section-read" class="mode-section animate-fade">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    <!-- Chart Display -->
+                    <div class="bg-white p-6 rounded-2xl shadow-lg border-2 border-blue-100">
+                        <h2 class="text-xl font-bold text-center mb-4 text-blue-800 bg-blue-50 py-2 rounded-lg">
+                            <span data-i18n="chartTitleRead">同學最喜愛的寵物</span>
+                        </h2>
+                        
+                        <div class="space-y-4">
+                            <!-- Row 1 -->
+                            <div class="flex items-center">
+                                <div class="w-24 font-bold text-right pr-4" data-i18n="dog">狗</div>
+                                <div class="flex-1 bg-slate-50 p-2 rounded-r-lg border-l-4 border-blue-400 flex flex-wrap gap-2 min-h-[50px] items-center">
+                                    <i class="fas fa-dog text-2xl text-amber-600 icon-enter"></i>
+                                    <i class="fas fa-dog text-2xl text-amber-600 icon-enter" style="animation-delay: 0.1s"></i>
+                                    <i class="fas fa-dog text-2xl text-amber-600 icon-enter" style="animation-delay: 0.2s"></i>
+                                    <i class="fas fa-dog text-2xl text-amber-600 icon-enter" style="animation-delay: 0.3s"></i>
+                                    <i class="fas fa-dog text-2xl text-amber-600 icon-enter" style="animation-delay: 0.4s"></i>
+                                </div>
+                            </div>
+                            <!-- Row 2 -->
+                            <div class="flex items-center">
+                                <div class="w-24 font-bold text-right pr-4" data-i18n="cat">貓</div>
+                                <div class="flex-1 bg-slate-50 p-2 rounded-r-lg border-l-4 border-pink-400 flex flex-wrap gap-2 min-h-[50px] items-center">
+                                    <i class="fas fa-cat text-2xl text-gray-500 icon-enter"></i>
+                                    <i class="fas fa-cat text-2xl text-gray-500 icon-enter" style="animation-delay: 0.1s"></i>
+                                    <i class="fas fa-cat text-2xl text-gray-500 icon-enter" style="animation-delay: 0.2s"></i>
+                                </div>
+                            </div>
+                            <!-- Row 3 -->
+                            <div class="flex items-center">
+                                <div class="w-24 font-bold text-right pr-4" data-i18n="rabbit">兔子</div>
+                                <div class="flex-1 bg-slate-50 p-2 rounded-r-lg border-l-4 border-green-400 flex flex-wrap gap-2 min-h-[50px] items-center">
+                                    <i class="fas fa-carrot text-2xl text-orange-500 icon-enter"></i>
+                                    <i class="fas fa-carrot text-2xl text-orange-500 icon-enter" style="animation-delay: 0.1s"></i>
+                                    <i class="fas fa-carrot text-2xl text-orange-500 icon-enter" style="animation-delay: 0.2s"></i>
+                                    <i class="fas fa-carrot text-2xl text-orange-500 icon-enter" style="animation-delay: 0.3s"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex justify-center items-center gap-2 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                            <span class="text-sm font-bold text-slate-600" data-i18n="legendKey">每個</span>
+                            <div class="bg-white p-1 rounded border border-slate-200"><i class="fas fa-paw text-slate-400"></i></div>
+                            <span class="text-sm font-bold text-slate-600" data-i18n="legendValue">代表 1 位同學</span>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Questions -->
+                    <div class="bg-white p-6 rounded-2xl shadow-lg flex flex-col justify-center">
+                        <h3 class="text-lg font-bold mb-4 border-b pb-2" data-i18n="questions">問題</h3>
+                        
+                        <!-- Question 1 -->
+                        <div class="mb-6 group">
+                            <p class="mb-2 font-medium" data-i18n="q1">1. 喜歡狗的同學有多少人？</p>
+                            <div class="flex gap-2">
+                                <input type="number" id="ans1" class="border-2 border-slate-200 rounded px-3 py-2 w-20 text-center focus:border-blue-500 outline-none text-lg" placeholder="?">
+                                <span class="self-center" data-i18n="people">人</span>
+                            </div>
+                            <div id="feedback1" class="hidden mt-2 text-sm font-bold"></div>
+                        </div>
+
+                        <!-- Question 2 -->
+                        <div class="mb-6 group">
+                            <p class="mb-2 font-medium" data-i18n="q2">2. 喜歡貓和兔子的同學共有多少人？</p>
+                            <div class="flex gap-2">
+                                <input type="number" id="ans2" class="border-2 border-slate-200 rounded px-3 py-2 w-20 text-center focus:border-blue-500 outline-none text-lg" placeholder="?">
+                                <span class="self-center" data-i18n="people">人</span>
+                            </div>
+                            <div id="feedback2" class="hidden mt-2 text-sm font-bold"></div>
+                        </div>
+
+                        <button onclick="checkReadAnswers()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2">
+                            <i class="fas fa-check-circle"></i> <span data-i18n="checkAnswers">檢查答案</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: CREATING PICTOGRAMS -->
+            <div id="section-create" class="mode-section hidden animate-fade">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    
+                    <!-- Data Source -->
+                    <div class="md:col-span-1">
+                        <div class="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
+                            <h3 class="font-bold text-indigo-800 mb-3 flex items-center gap-2">
+                                <i class="fas fa-table"></i> <span data-i18n="dataSource">數據表</span>
+                            </h3>
+                            <p class="text-sm text-indigo-600 mb-4" data-i18n="dataInstruction">請根據以下數據製作圖表：</p>
+                            
+                            <table class="w-full bg-white rounded-lg overflow-hidden shadow-sm">
+                                <thead class="bg-indigo-100 text-indigo-800">
+                                    <tr>
+                                        <th class="p-3 text-left" data-i18n="fruit">水果</th>
+                                        <th class="p-3 text-center" data-i18n="count">數量</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-indigo-50">
+                                    <tr>
+                                        <td class="p-3 flex items-center gap-2"><i class="fas fa-apple-alt text-red-500"></i> <span data-i18n="apple">蘋果</span></td>
+                                        <td class="p-3 text-center font-bold text-lg">4</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 flex items-center gap-2"><i class="fas fa-lemon text-yellow-400"></i> <span data-i18n="lemon">檸檬</span></td>
+                                        <td class="p-3 text-center font-bold text-lg">2</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3 flex items-center gap-2"><i class="fas fa-stroopwafel text-purple-500"></i> <span data-i18n="grapes">葡萄</span></td>
+                                        <td class="p-3 text-center font-bold text-lg">5</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            
+                            <div class="mt-4 p-3 bg-yellow-100 rounded-lg text-yellow-800 text-sm border border-yellow-200">
+                                <i class="fas fa-lightbulb mr-1"></i> <span data-i18n="hintCreate">提示：點擊下方的「+」按鈕來增加圖形。</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Canvas -->
+                    <div class="md:col-span-2 bg-white p-6 rounded-2xl shadow-lg border-2 border-indigo-50 flex flex-col relative">
+                        <h2 class="text-xl font-bold text-center mb-6 text-indigo-800" data-i18n="chartTitleCreate">水果銷售量</h2>
+
+                        <!-- Graph Area -->
+                        <div class="flex justify-around items-end h-64 border-b-2 border-slate-300 pb-2 mb-4 space-x-2">
+                            
+                            <!-- Col 1: Apple -->
+                            <div class="flex flex-col items-center justify-end h-full w-1/3 group">
+                                <div id="col-apple" class="flex flex-col-reverse items-center w-full gap-1 mb-2 transition-all">
+                                    <!-- Icons appear here -->
+                                </div>
+                                <div class="text-center font-bold text-slate-600" data-i18n="apple">蘋果</div>
+                                <div class="flex gap-2 mt-2">
+                                    <button onclick="updateChart('apple', -1)" class="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center font-bold"><i class="fas fa-minus"></i></button>
+                                    <button onclick="updateChart('apple', 1)" class="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center font-bold shadow-sm active:scale-95"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Col 2: Lemon -->
+                            <div class="flex flex-col items-center justify-end h-full w-1/3 group">
+                                <div id="col-lemon" class="flex flex-col-reverse items-center w-full gap-1 mb-2 transition-all">
+                                    <!-- Icons appear here -->
+                                </div>
+                                <div class="text-center font-bold text-slate-600" data-i18n="lemon">檸檬</div>
+                                <div class="flex gap-2 mt-2">
+                                    <button onclick="updateChart('lemon', -1)" class="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center font-bold"><i class="fas fa-minus"></i></button>
+                                    <button onclick="updateChart('lemon', 1)" class="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center font-bold shadow-sm active:scale-95"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Col 3: Grapes -->
+                            <div class="flex flex-col items-center justify-end h-full w-1/3 group">
+                                <div id="col-grapes" class="flex flex-col-reverse items-center w-full gap-1 mb-2 transition-all">
+                                    <!-- Icons appear here -->
+                                </div>
+                                <div class="text-center font-bold text-slate-600" data-i18n="grapes">葡萄</div>
+                                <div class="flex gap-2 mt-2">
+                                    <button onclick="updateChart('grapes', -1)" class="w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center font-bold"><i class="fas fa-minus"></i></button>
+                                    <button onclick="updateChart('grapes', 1)" class="w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center font-bold shadow-sm active:scale-95"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Legend -->
+                        <div class="text-center mb-6">
+                            <span class="bg-indigo-50 px-4 py-2 rounded-full text-sm font-bold text-indigo-700">
+                                <span data-i18n="eachIcon">每個圖形</span> 
+                                <i class="fas fa-circle text-indigo-400 mx-1"></i> 
+                                <span data-i18n="represents1">代表 1 個水果</span>
+                            </span>
+                        </div>
+
+                        <!-- Validate Button -->
+                        <button onclick="checkCreateAnswers()" class="mt-auto w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2">
+                            <i class="fas fa-star"></i> <span data-i18n="finishCheck">完成並檢查</span>
+                        </button>
+                        
+                        <!-- Create Feedback Overlay -->
+                        <div id="create-feedback" class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center z-20 animate-fade">
+                            <div id="create-icon" class="text-6xl mb-4"></div>
+                            <h3 id="create-msg" class="text-2xl font-bold mb-4"></h3>
+                            <button onclick="closeFeedback()" class="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold">OK</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white p-4 border-t text-center text-slate-400 text-xs">
+        <p>&copy; 2024 Pictogram Learning Tool. Designed for iPad & Notebook.</p>
+    </footer>
+
+    <script>
+        // --- DATA & CONFIG ---
+        const dictionary = {
+            zh: {
+                appTitle: "象形圖 (一)",
+                appSubtitle: "一個圖案代表 1 個單位",
+                modeRead: "閱讀圖表",
+                modeCreate: "製作圖表",
+                chartTitleRead: "同學最喜愛的寵物",
+                dog: "狗",
+                cat: "貓",
+                rabbit: "兔子",
+                legendKey: "每個圖案",
+                legendValue: "代表 1 位同學",
+                questions: "問題",
+                q1: "1. 喜歡狗的同學有多少人？",
+                q2: "2. 喜歡貓和兔子的同學共有多少人？",
+                people: "人",
+                checkAnswers: "檢查答案",
+                chartTitleCreate: "水果銷售量",
+                dataSource: "數據表",
+                dataInstruction: "請根據以下數據製作圖表：",
+                fruit: "水果",
+                count: "數量",
+                apple: "蘋果",
+                lemon: "檸檬",
+                grapes: "葡萄",
+                hintCreate: "提示：點擊下方的「+」按鈕來增加圖案。",
+                eachIcon: "每個圖案",
+                represents1: "代表 1 個水果",
+                finishCheck: "完成並檢查",
+                correct: "答對了！做得好！",
+                tryAgain: "再試一次喔！",
+                incomplete: "還沒完成喔，再檢查一下數量。",
+                feedbackCorrect: "太棒了！",
+                feedbackWrong: "加油！再數一次。"
+            },
+            en: {
+                appTitle: "Pictograms (I)",
+                appSubtitle: "One symbol represents 1 unit",
+                modeRead: "Read Chart",
+                modeCreate: "Make Chart",
+                chartTitleRead: "Favorite Pets",
+                dog: "Dog",
+                cat: "Cat",
+                rabbit: "Rabbit",
+                legendKey: "Each symbol",
+                legendValue: "stands for 1 student",
+                questions: "Questions",
+                q1: "1. How many students like dogs?",
+                q2: "2. Total students who like cats and rabbits?",
+                people: "students",
+                checkAnswers: "Check Answers",
+                chartTitleCreate: "Fruit Sales",
+                dataSource: "Data Table",
+                dataInstruction: "Create a chart based on this data:",
+                fruit: "Fruit",
+                count: "Count",
+                apple: "Apple",
+                lemon: "Lemon",
+                grapes: "Grapes",
+                hintCreate: "Hint: Click the '+' button to add symbols.",
+                eachIcon: "Each symbol",
+                represents1: "stands for 1 fruit",
+                finishCheck: "Finish & Check",
+                correct: "Correct! Well done!",
+                tryAgain: "Try again!",
+                incomplete: "Not quite. Check the numbers again.",
+                feedbackCorrect: "Awesome!",
+                feedbackWrong: "Keep going! Count again."
+            }
+        };
+
+        const createData = {
+            apple: { target: 4, current: 0, icon: 'fa-apple-alt', color: 'text-red-500' },
+            lemon: { target: 2, current: 0, icon: 'fa-lemon', color: 'text-yellow-400' },
+            grapes: { target: 5, current: 0, icon: 'fa-stroopwafel', color: 'text-purple-500' } // Using stroopwafel as abstract grape shape or circle, using specific grape icon if available in fontawesome free
+        };
+
+        let currentLang = 'zh';
+
+        // --- INIT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setLang('zh');
+        });
+
+        // --- LANGUAGE LOGIC ---
+        function setLang(lang) {
+            currentLang = lang;
+            
+            // Update active button state
+            document.getElementById('btn-zh').className = lang === 'zh' 
+                ? "px-3 py-1 rounded bg-blue-600 text-white font-bold transition-colors shadow-sm"
+                : "px-3 py-1 rounded border-2 border-blue-100 hover:bg-blue-50 text-sm font-bold text-blue-600 transition-colors";
+                
+            document.getElementById('btn-en').className = lang === 'en' 
+                ? "px-3 py-1 rounded bg-blue-600 text-white font-bold transition-colors shadow-sm"
+                : "px-3 py-1 rounded border-2 border-blue-100 hover:bg-blue-50 text-sm font-bold text-blue-600 transition-colors";
+
+            // Replace text
+            const elements = document.querySelectorAll('[data-i18n]');
+            elements.forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dictionary[lang][key]) {
+                    el.textContent = dictionary[lang][key];
+                }
+            });
+        }
+
+        // --- TAB SWITCHING ---
+        function switchMode(mode) {
+            const readSection = document.getElementById('section-read');
+            const createSection = document.getElementById('section-create');
+            const btnRead = document.getElementById('tab-read');
+            const btnCreate = document.getElementById('tab-create');
+
+            if (mode === 'read') {
+                readSection.classList.remove('hidden');
+                createSection.classList.add('hidden');
+                
+                // Style buttons
+                btnRead.classList.add('bg-blue-500', 'text-white', 'shadow-md');
+                btnRead.classList.remove('text-slate-500', 'hover:bg-slate-50');
+                
+                btnCreate.classList.remove('bg-blue-500', 'text-white', 'shadow-md');
+                btnCreate.classList.add('text-slate-500', 'hover:bg-slate-50');
+            } else {
+                readSection.classList.add('hidden');
+                createSection.classList.remove('hidden');
+
+                // Style buttons
+                btnCreate.classList.add('bg-blue-500', 'text-white', 'shadow-md');
+                btnCreate.classList.remove('text-slate-500', 'hover:bg-slate-50');
+                
+                btnRead.classList.remove('bg-blue-500', 'text-white', 'shadow-md');
+                btnRead.classList.add('text-slate-500', 'hover:bg-slate-50');
+            }
+        }
+
+        // --- READ MODE LOGIC ---
+        function checkReadAnswers() {
+            const ans1 = parseInt(document.getElementById('ans1').value);
+            const ans2 = parseInt(document.getElementById('ans2').value);
+            
+            const fb1 = document.getElementById('feedback1');
+            const fb2 = document.getElementById('feedback2');
+
+            // Q1 Logic: 5 dogs
+            validateField(ans1, 5, fb1);
+
+            // Q2 Logic: 3 cats + 4 rabbits = 7
+            validateField(ans2, 7, fb2);
+        }
+
+        function validateField(inputVal, correctVal, feedbackEl) {
+            feedbackEl.classList.remove('hidden');
+            if (inputVal === correctVal) {
+                feedbackEl.textContent = dictionary[currentLang].feedbackCorrect;
+                feedbackEl.className = "mt-2 text-sm font-bold text-green-600 animate-bounce";
+            } else {
+                feedbackEl.textContent = dictionary[currentLang].feedbackWrong;
+                feedbackEl.className = "mt-2 text-sm font-bold text-red-500";
+            }
+        }
+
+        // --- CREATE MODE LOGIC ---
+        function updateChart(fruit, change) {
+            const data = createData[fruit];
+            
+            // Prevent negative or over 8 (max height visually)
+            if (change === -1 && data.current > 0) {
+                data.current--;
+            } else if (change === 1 && data.current < 8) {
+                data.current++;
+            } else {
+                return; // Do nothing
+            }
+
+            renderColumn(fruit);
+        }
+
+        function renderColumn(fruit) {
+            const container = document.getElementById(`col-${fruit}`);
+            container.innerHTML = ''; // Clear
+
+            const data = createData[fruit];
+            
+            for (let i = 0; i < data.current; i++) {
+                const icon = document.createElement('i');
+                // Use a circle for generic pictogram if specific fruit icon looks weird, but here we try specific
+                // Using generic circle for easier consistency if needed: 'fa-circle'
+                icon.className = `fas ${data.icon} ${data.color} text-3xl drop-shadow-sm icon-enter`; 
+                container.appendChild(icon);
+            }
+        }
+
+        function checkCreateAnswers() {
+            const isAppleCorrect = createData.apple.current === createData.apple.target;
+            const isLemonCorrect = createData.lemon.current === createData.lemon.target;
+            const isGrapesCorrect = createData.grapes.current === createData.grapes.target;
+
+            const overlay = document.getElementById('create-feedback');
+            const iconEl = document.getElementById('create-icon');
+            const msgEl = document.getElementById('create-msg');
+            
+            overlay.classList.remove('hidden');
+
+            if (isAppleCorrect && isLemonCorrect && isGrapesCorrect) {
+                iconEl.innerHTML = '<i class="fas fa-trophy text-yellow-500"></i>';
+                msgEl.textContent = dictionary[currentLang].correct;
+                msgEl.className = "text-2xl font-bold mb-4 text-green-600";
+            } else {
+                iconEl.innerHTML = '<i class="fas fa-exclamation-circle text-orange-400"></i>';
+                msgEl.textContent = dictionary[currentLang].incomplete;
+                msgEl.className = "text-2xl font-bold mb-4 text-slate-700";
+            }
+        }
+
+        function closeFeedback() {
+            document.getElementById('create-feedback').classList.add('hidden');
+        }
+
+    </script>
+</body>
+</html>
