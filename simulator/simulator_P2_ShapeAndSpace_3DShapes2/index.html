@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>立體圖形(二) 3D Shapes (II)</title>
+    <!-- Tailwind CSS for Responsive Design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Nunito', 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        /* Custom Canvas Container for responsiveness */
+        #canvas-container {
+            width: 100%;
+            height: 400px; /* Default mobile/tablet height */
+            background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 100%);
+            border-radius: 1rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        }
+
+        @media (min-width: 768px) {
+            #canvas-container {
+                height: 500px; /* Taller for notebooks/desktop */
+            }
+        }
+
+        .tab-btn.active {
+            background-color: #3b82f6; /* Blue-500 */
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .highlight-btn.active {
+            background-color: #4f46e5; /* Indigo-600 */
+            color: white;
+            border-color: #4f46e5;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
+        }
+
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        /* Hide scrollbar for shape selector */
+        .shape-scroller::-webkit-scrollbar {
+            height: 6px;
+        }
+        .shape-scroller::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        /* Quiz Option Animations */
+        .quiz-option {
+            transition: all 0.2s;
+        }
+        .quiz-option:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navigation / Header -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <!-- Logo Placeholder -->
+                    <div class="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden border border-gray-300">
+                        <img src="logo.png" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTk5IiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIGQ9Ik0xMiAzbDEwIDYtMTAgNi0xMC02IDEwLTZ6bTAgMTJsMTAtNi0xMCA2LTEwLTZ6bTAgMTJ2LTEybTEwIDZ2LTEybS0yMCA2di0xMiIvPjwvc3ZnPg=='" alt="Logo" class="h-full w-full object-cover">
+                    </div>
+                    <h1 class="text-xl font-bold text-blue-900 tracking-tight">
+                        <span class="lang-zh">立體圖形 (二)</span>
+                        <span class="lang-en hidden">3D Shapes (II)</span>
+                    </h1>
+                </div>
+                
+                <!-- Controls -->
+                <div class="flex items-center gap-2">
+                    <button id="langToggle" class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-bold hover:bg-indigo-200 transition">
+                        EN / 中文
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        <!-- Tabs -->
+        <div class="flex justify-center mb-6">
+            <div class="inline-flex rounded-md shadow-sm" role="group">
+                <button onclick="switchMode('learn')" id="tab-learn" class="tab-btn active px-6 py-2 text-sm font-medium border border-gray-200 rounded-l-lg bg-white text-gray-900 hover:bg-gray-100 focus:z-10 focus:ring-2 focus:ring-blue-700">
+                    <span class="lang-zh">學習模式</span><span class="lang-en hidden">Learn</span>
+                </button>
+                <button onclick="switchMode('quiz')" id="tab-quiz" class="tab-btn px-6 py-2 text-sm font-medium border border-gray-200 rounded-r-lg bg-white text-gray-900 hover:bg-gray-100 focus:z-10 focus:ring-2 focus:ring-blue-700">
+                    <span class="lang-zh">挑戰測驗</span><span class="lang-en hidden">Quiz Challenge</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- LEARN MODE UI -->
+        <div id="learn-panel" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Left: 3D Visualization -->
+            <div class="lg:col-span-7">
+                <div id="canvas-container" class="shadow-lg border border-gray-100">
+                    <div class="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded shadow text-sm font-mono text-gray-500 z-10 pointer-events-none">
+                        <span class="lang-zh">拖曳旋轉 • 滾輪縮放</span>
+                        <span class="lang-en hidden">Drag to Rotate • Scroll to Zoom</span>
+                    </div>
+                </div>
+
+                <!-- Feature Highlighting Controls -->
+                <div class="mt-4 flex justify-center gap-3">
+                    <button onclick="setHighlight('faces')" id="btn-faces" class="highlight-btn active px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-bold shadow-sm hover:bg-gray-50 transition flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-sm bg-blue-400 inline-block"></span>
+                        <span class="lang-zh">顯示面</span><span class="lang-en hidden">Show Faces</span>
+                    </button>
+                    <button onclick="setHighlight('edges')" id="btn-edges" class="highlight-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-bold shadow-sm hover:bg-gray-50 transition flex items-center gap-2">
+                        <span class="w-3 h-3 border-2 border-red-500 inline-block"></span>
+                        <span class="lang-zh">顯示稜</span><span class="lang-en hidden">Show Edges</span>
+                    </button>
+                    <button onclick="setHighlight('vertices')" id="btn-vertices" class="highlight-btn px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-sm font-bold shadow-sm hover:bg-gray-50 transition flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-indigo-600 inline-block"></span>
+                        <span class="lang-zh">顯示頂</span><span class="lang-en hidden">Show Vertices</span>
+                    </button>
+                </div>
+                
+                <!-- Shape Selector (Scrollable horizontally on mobile) -->
+                <div class="mt-4 flex gap-2 overflow-x-auto shape-scroller pb-2 border-t pt-4 border-gray-100">
+                    <!-- Buttons generated by JS -->
+                    <div id="shape-buttons" class="flex gap-2 mx-auto"></div>
+                </div>
+            </div>
+
+            <!-- Right: Information & Concepts -->
+            <div class="lg:col-span-5 space-y-4">
+                
+                <!-- Info Card -->
+                <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                    <div class="flex justify-between items-start mb-2">
+                        <h2 id="shape-name" class="text-2xl font-bold text-gray-800">
+                            <!-- Populated by JS -->
+                        </h2>
+                        <span id="shape-category" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-blue-100 text-blue-800">
+                            <!-- Populated by JS -->
+                        </span>
+                    </div>
+                    
+                    <p id="shape-desc" class="text-gray-600 text-sm mb-6">
+                        <!-- Description -->
+                    </p>
+
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <button onclick="setHighlight('faces')" class="stat-card bg-orange-50 p-3 rounded-lg border border-orange-100 hover:bg-orange-100 cursor-pointer">
+                            <div id="val-faces" class="text-2xl font-bold text-orange-600">0</div>
+                            <div class="text-xs text-orange-800 uppercase font-semibold">
+                                <span class="lang-zh">面</span><span class="lang-en hidden">Faces</span>
+                            </div>
+                        </button>
+                        <button onclick="setHighlight('edges')" class="stat-card bg-green-50 p-3 rounded-lg border border-green-100 hover:bg-green-100 cursor-pointer">
+                            <div id="val-edges" class="text-2xl font-bold text-green-600">0</div>
+                            <div class="text-xs text-green-800 uppercase font-semibold">
+                                <span class="lang-zh">稜</span><span class="lang-en hidden">Edges</span>
+                            </div>
+                        </button>
+                        <button onclick="setHighlight('vertices')" class="stat-card bg-purple-50 p-3 rounded-lg border border-purple-100 hover:bg-purple-100 cursor-pointer">
+                            <div id="val-vertices" class="text-2xl font-bold text-purple-600">0</div>
+                            <div class="text-xs text-purple-800 uppercase font-semibold">
+                                <span class="lang-zh">頂</span><span class="lang-en hidden">Vertices</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Concept Note -->
+                <div class="bg-blue-50 rounded-xl p-5 border border-blue-100">
+                    <h3 class="font-bold text-blue-900 mb-2 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span class="lang-zh">特徵重點</span><span class="lang-en hidden">Key Features</span>
+                    </h3>
+                    <ul class="list-disc list-inside text-sm text-blue-800 space-y-1">
+                        <li id="feature-1"></li>
+                        <li id="feature-2"></li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- QUIZ MODE UI (Hidden by default) -->
+        <div id="quiz-panel" class="hidden max-w-2xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+                <div class="bg-indigo-600 p-6 text-center text-white">
+                    <h2 class="text-2xl font-bold mb-1" id="quiz-question-title">
+                        <!-- Dynamic Question Title -->
+                    </h2>
+                    <p class="text-indigo-200 text-sm">
+                        <span class="lang-zh">觀察圖形並回答問題。</span>
+                        <span class="lang-en hidden">Observe the shape and answer the question.</span>
+                    </p>
+                </div>
+                
+                <div class="p-6">
+                    <!-- Quiz Canvas moved dynamically via JS or separate instance -->
+                    <div id="quiz-canvas-placeholder" class="h-64 bg-gray-50 rounded-lg mb-6 flex items-center justify-center border-2 border-dashed border-gray-200">
+                        <p class="text-gray-400">3D Shape View</p>
+                    </div>
+
+                    <!-- Dynamic Quiz Options -->
+                    <div id="quiz-options-container" class="grid grid-cols-2 gap-4 mb-4">
+                        <!-- Buttons injected by JS -->
+                    </div>
+
+                    <div id="quiz-feedback" class="hidden p-4 rounded-lg text-center font-bold mb-4">
+                        <!-- Feedback text -->
+                    </div>
+
+                    <div class="text-center">
+                        <button onclick="nextQuestion()" class="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <span class="lang-zh">下一題 &rarr;</span>
+                            <span class="lang-en hidden">Next Question &rarr;</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-12 py-6 bg-white border-t border-gray-200">
+        <div class="text-center text-gray-500 text-sm">
+            &copy; 2026 Math Concepts Simulator. Designed for iPad & Notebook.
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- DATA & STATE ---
+        const state = {
+            lang: 'zh', 
+            mode: 'learn', 
+            highlightMode: 'faces',
+            currentShapeIndex: 0,
+            
+            // Quiz State
+            quizTarget: null,
+            quizQuestionType: 'type', // 'type', 'faces', 'edges', 'vertices'
+            quizCorrectAnswer: null,
+
+            scene: null,
+            camera: null,
+            renderer: null,
+            controls: null,
+            currentMesh: null,
+            currentWireframe: null,
+            vertexGroup: null, 
+            isRotating: false // Default to false
+        };
+
+        const dictionary = {
+            prism: { zh: '柱體', en: 'Prism' },
+            pyramid: { zh: '錐體', en: 'Pyramid' },
+            faces: { zh: '面', en: 'Faces' },
+            edges: { zh: '稜', en: 'Edges' },
+            vertices: { zh: '頂', en: 'Vertices' },
+            base: { zh: '底', en: 'Base' },
+            lateral: { zh: '側面', en: 'Lateral Faces' },
+            q_type: { zh: '這個圖形屬於哪一類？', en: 'What type of shape is this?' },
+            q_faces: { zh: '這個圖形有多少個面？', en: 'How many FACES does it have?' },
+            q_edges: { zh: '這個圖形有多少條稜？', en: 'How many EDGES does it have?' },
+            q_vertices: { zh: '這個圖形有多少個頂？', en: 'How many VERTICES does it have?' }
+        };
+
+        const shapeData = [
+            {
+                id: 'tri_prism',
+                type: 'prism',
+                names: { zh: '三角柱', en: 'Triangular Prism' },
+                desc: { zh: '底面是三角形，側面是矩形。', en: 'Bases are triangles, side faces are rectangles.' },
+                stats: { faces: 5, edges: 9, vertices: 6 },
+                geometry: () => new THREE.CylinderGeometry(1.5, 1.5, 2.5, 3), 
+                color: 0x60A5FA, 
+                features: {
+                    zh: ['有 2 個全等的三角形底面', '側面都是長方形'],
+                    en: ['Has 2 congruent triangular bases', 'Side faces are rectangles']
+                }
+            },
+            {
+                id: 'rect_prism',
+                type: 'prism',
+                names: { zh: '長方體 (四角柱)', en: 'Rectangular Prism' },
+                desc: { zh: '所有面都是矩形，對面平行且全等。', en: 'All faces are rectangles. Opposite faces are parallel.' },
+                stats: { faces: 6, edges: 12, vertices: 8 },
+                geometry: () => new THREE.BoxGeometry(2, 2, 2),
+                color: 0x34D399, 
+                features: {
+                    zh: ['有 2 個底面 (可以是正方形或長方形)', '相對的面互相平行'],
+                    en: ['Has 2 bases (square or rectangle)', 'Opposite faces are parallel']
+                }
+            },
+            {
+                id: 'pent_prism',
+                type: 'prism',
+                names: { zh: '五角柱', en: 'Pentagonal Prism' },
+                desc: { zh: '底面是五邊形，有5個矩形側面。', en: 'Bases are pentagons, has 5 rectangular sides.' },
+                stats: { faces: 7, edges: 15, vertices: 10 },
+                geometry: () => new THREE.CylinderGeometry(1.5, 1.5, 2.5, 5),
+                color: 0xFBBF24, 
+                features: {
+                    zh: ['底面是五邊形', '側面數目 = 底邊數目 (5)'],
+                    en: ['Bases are pentagons', 'Number of side faces = 5']
+                }
+            },
+            {
+                id: 'hex_prism',
+                type: 'prism',
+                names: { zh: '六角柱', en: 'Hexagonal Prism' },
+                desc: { zh: '底面是六邊形。', en: 'Bases are hexagons.' },
+                stats: { faces: 8, edges: 18, vertices: 12 },
+                geometry: () => new THREE.CylinderGeometry(1.5, 1.5, 2.5, 6),
+                color: 0xA78BFA, 
+                features: {
+                    zh: ['底面是六邊形', '頂點數 = 底邊數 × 2'],
+                    en: ['Bases are hexagons', 'Vertices = Base edges × 2']
+                }
+            },
+            {
+                id: 'tri_pyramid',
+                type: 'pyramid',
+                names: { zh: '三角錐 (四面體)', en: 'Triangular Pyramid' },
+                desc: { zh: '底面是三角形，所有面都是三角形。', en: 'Base is a triangle, all faces are triangles.' },
+                stats: { faces: 4, edges: 6, vertices: 4 },
+                geometry: () => new THREE.ConeGeometry(1.8, 2.5, 3),
+                color: 0xF472B6, 
+                features: {
+                    zh: ['只有 1 個底面', '所有側面聚於 1 個尖頂'],
+                    en: ['Has only 1 base', 'All sides meet at 1 apex']
+                }
+            },
+            {
+                id: 'sq_pyramid',
+                type: 'pyramid',
+                names: { zh: '四角錐', en: 'Square Pyramid' },
+                desc: { zh: '底面是四邊形，側面是三角形。', en: 'Base is a quadrilateral, sides are triangles.' },
+                stats: { faces: 5, edges: 8, vertices: 5 },
+                geometry: () => new THREE.ConeGeometry(1.8, 2.5, 4),
+                color: 0xFB7185, 
+                features: {
+                    zh: ['底面是四邊形', '側面是 4 個三角形'],
+                    en: ['Base is a quadrilateral', 'Side faces are 4 triangles']
+                }
+            },
+            {
+                id: 'pent_pyramid',
+                type: 'pyramid',
+                names: { zh: '五角錐', en: 'Pentagonal Pyramid' },
+                desc: { zh: '底面是五邊形。', en: 'Base is a pentagon.' },
+                stats: { faces: 6, edges: 10, vertices: 6 },
+                geometry: () => new THREE.ConeGeometry(1.8, 2.5, 5),
+                color: 0x22D3EE, 
+                features: {
+                    zh: ['底面是五邊形', '稜數 = 底邊數 × 2'],
+                    en: ['Base is a pentagon', 'Edges = Base edges × 2']
+                }
+            }
+        ];
+
+        // --- THREE.JS SETUP ---
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+            
+            // Scene
+            state.scene = new THREE.Scene();
+            state.scene.background = new THREE.Color(0xffffff);
+
+            // Camera
+            state.camera = new THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.1, 100);
+            state.camera.position.set(0, 2, 6);
+
+            // Renderer
+            state.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            state.renderer.setSize(container.offsetWidth, container.offsetHeight);
+            state.renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(state.renderer.domElement);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            state.scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 7);
+            state.scene.add(dirLight);
+
+            // Controls
+            state.controls = new THREE.OrbitControls(state.camera, state.renderer.domElement);
+            state.controls.enableDamping = true;
+            state.controls.dampingFactor = 0.05;
+            state.controls.autoRotate = false; // Disable auto-rotation
+            state.controls.autoRotateSpeed = 0; // Set speed to 0 just in case
+
+            // Handle Resize
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Allow manual interaction without interference
+            state.controls.addEventListener('start', () => { state.isRotating = false; });
+            
+            loadShape(0);
+            animate();
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            const quizContainer = document.getElementById('quiz-canvas-placeholder');
+            const target = state.mode === 'quiz' ? quizContainer : container;
+
+            if (!target) return;
+
+            state.camera.aspect = target.offsetWidth / target.offsetHeight;
+            state.camera.updateProjectionMatrix();
+            state.renderer.setSize(target.offsetWidth, target.offsetHeight);
+        }
+
+        function getUniqueVertices(geometry) {
+            const vertices = [];
+            const positionAttribute = geometry.getAttribute('position');
+            const threshold = 0.1; // Distance threshold to merge vertices
+
+            for (let i = 0; i < positionAttribute.count; i++) {
+                const vec = new THREE.Vector3();
+                vec.fromBufferAttribute(positionAttribute, i);
+                
+                let unique = true;
+                for (const v of vertices) {
+                    if (v.distanceTo(vec) < threshold) {
+                        unique = false;
+                        break;
+                    }
+                }
+                if (unique) {
+                    vertices.push(vec);
+                }
+            }
+            return vertices;
+        }
+
+        function createShapeMesh(shapeDef) {
+            // Remove old
+            if (state.currentMesh) state.scene.remove(state.currentMesh);
+            if (state.currentWireframe) state.scene.remove(state.currentWireframe); 
+            if (state.vertexGroup) state.scene.remove(state.vertexGroup);
+
+            // Geometry
+            const geometry = shapeDef.geometry();
+            
+            // Material (Solid)
+            const material = new THREE.MeshPhongMaterial({ 
+                color: shapeDef.color, 
+                flatShading: true,
+                shininess: 30,
+                transparent: true,
+                opacity: 1.0
+            });
+            
+            state.currentMesh = new THREE.Mesh(geometry, material);
+            
+            // Edges (Wireframe)
+            const edges = new THREE.EdgesGeometry(geometry);
+            state.currentWireframe = new THREE.LineSegments(
+                edges, 
+                new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 })
+            );
+            state.currentMesh.add(state.currentWireframe);
+
+            // Vertex Spheres
+            state.vertexGroup = new THREE.Group();
+            let uniqueVerts = getUniqueVertices(geometry);
+            
+            // Filter out center vertices generated by Cylinder/Cone geometries
+            if (geometry.type === 'CylinderGeometry') {
+                uniqueVerts = uniqueVerts.filter(v => Math.hypot(v.x, v.z) > 0.1);
+            } else if (geometry.type === 'ConeGeometry') {
+                uniqueVerts = uniqueVerts.filter(v => {
+                    const isCenter = Math.hypot(v.x, v.z) < 0.1;
+                    if (isCenter && v.y < 0) return false; 
+                    return true;
+                });
+            }
+
+            const sphereGeo = new THREE.SphereGeometry(0.15, 16, 16);
+            const sphereMat = new THREE.MeshBasicMaterial({ color: 0x4F46E5 }); // Indigo
+
+            uniqueVerts.forEach(v => {
+                const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+                sphere.position.copy(v);
+                state.vertexGroup.add(sphere);
+            });
+            
+            state.currentMesh.add(state.vertexGroup);
+            state.scene.add(state.currentMesh);
+
+            // Apply current highlight settings
+            updateVisuals();
+        }
+
+        function setHighlight(type) {
+            state.highlightMode = type;
+            // state.isRotating = false; // No longer needed as rotation is off by default
+            
+            // Update Buttons UI
+            document.querySelectorAll('.highlight-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`btn-${type}`).classList.add('active');
+
+            updateVisuals();
+        }
+
+        function updateVisuals() {
+            if (!state.currentMesh) return;
+
+            const mesh = state.currentMesh;
+            const wireframe = state.currentWireframe;
+            const vertices = state.vertexGroup;
+            const mat = mesh.material;
+            const wireMat = wireframe.material;
+
+            // Defaults
+            mat.opacity = 1.0;
+            mat.depthWrite = true;
+            wireMat.color.setHex(0x000000);
+            wireMat.opacity = 1.0;
+            wireMat.transparent = false;
+            wireframe.visible = true;
+            vertices.visible = false;
+
+            if (state.highlightMode === 'faces') {
+                mat.opacity = 1.0;
+            } else if (state.highlightMode === 'edges') {
+                mat.opacity = 0.3;
+                mat.depthWrite = false; 
+                wireMat.color.setHex(0xFF0000); 
+                wireMat.linewidth = 3; 
+                wireframe.visible = true;
+            } else if (state.highlightMode === 'vertices') {
+                mat.opacity = 0.3;
+                mat.depthWrite = false;
+                wireMat.color.setHex(0x000000);
+                wireMat.transparent = true;
+                wireMat.opacity = 0.1;
+                vertices.visible = true;
+            }
+        }
+
+        function loadShape(index) {
+            state.currentShapeIndex = index;
+            const data = shapeData[index];
+            createShapeMesh(data);
+            updateInfoPanel(data);
+            
+            document.querySelectorAll('.shape-btn').forEach((btn, idx) => {
+                if (idx === index) {
+                    btn.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+                } else {
+                    btn.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            // Always update controls to handle damping (inertia)
+            state.controls.update(); 
+            state.renderer.render(state.scene, state.camera);
+        }
+
+        // --- UI LOGIC ---
+
+        function initUI() {
+            const btnContainer = document.getElementById('shape-buttons');
+            
+            shapeData.forEach((shape, index) => {
+                const btn = document.createElement('button');
+                btn.className = `shape-btn flex-shrink-0 px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold hover:bg-gray-50 transition`;
+                btn.innerHTML = `<span class="lang-zh">${shape.names.zh}</span><span class="lang-en hidden">${shape.names.en}</span>`;
+                btn.onclick = () => {
+                    state.isRotating = false; 
+                    loadShape(index);
+                };
+                btnContainer.appendChild(btn);
+            });
+
+            document.getElementById('langToggle').addEventListener('click', () => {
+                state.lang = state.lang === 'zh' ? 'en' : 'zh';
+                updateLanguage();
+            });
+        }
+
+        function updateInfoPanel(data) {
+            const l = state.lang;
+            document.getElementById('shape-name').textContent = data.names[l];
+            document.getElementById('shape-category').textContent = dictionary[data.type][l];
+            document.getElementById('shape-desc').textContent = data.desc[l];
+            document.getElementById('val-faces').textContent = data.stats.faces;
+            document.getElementById('val-edges').textContent = data.stats.edges;
+            document.getElementById('val-vertices').textContent = data.stats.vertices;
+            document.getElementById('feature-1').textContent = data.features[l][0];
+            document.getElementById('feature-2').textContent = data.features[l][1];
+        }
+
+        function updateLanguage() {
+            const l = state.lang;
+            document.querySelectorAll('.lang-zh').forEach(el => el.classList.toggle('hidden', l === 'en'));
+            document.querySelectorAll('.lang-en').forEach(el => el.classList.toggle('hidden', l === 'zh'));
+            
+            if (state.mode === 'learn') {
+                updateInfoPanel(shapeData[state.currentShapeIndex]);
+            } else if (state.mode === 'quiz') {
+                updateQuizLanguage();
+            }
+        }
+
+        function updateQuizLanguage() {
+            const l = state.lang;
+            const qKey = 'q_' + state.quizQuestionType;
+            document.getElementById('quiz-question-title').innerText = dictionary[qKey][l];
+            
+            // Re-render buttons if they are category types (text based)
+            if (state.quizQuestionType === 'type') {
+                 // We need to re-generate text on buttons, but simpler to just let user click next or answer
+                 // For now, let's just update the options container based on current random set.
+                 // Actually, simpler to just re-render the question
+                 renderQuizOptions();
+            }
+        }
+
+        function switchMode(mode) {
+            state.mode = mode;
+            document.getElementById('tab-learn').classList.toggle('active', mode === 'learn');
+            document.getElementById('tab-quiz').classList.toggle('active', mode === 'quiz');
+            document.getElementById('learn-panel').classList.toggle('hidden', mode !== 'learn');
+            document.getElementById('quiz-panel').classList.toggle('hidden', mode !== 'quiz');
+
+            if (mode === 'quiz') {
+                const quizContainer = document.getElementById('quiz-canvas-placeholder');
+                quizContainer.innerHTML = ''; 
+                quizContainer.appendChild(state.renderer.domElement);
+                nextQuestion();
+            } else {
+                const learnContainer = document.getElementById('canvas-container');
+                learnContainer.appendChild(state.renderer.domElement);
+                state.renderer.setSize(learnContainer.offsetWidth, learnContainer.offsetHeight);
+                loadShape(state.currentShapeIndex); 
+            }
+            setTimeout(onWindowResize, 50);
+        }
+
+        // --- ENHANCED QUIZ LOGIC ---
+
+        function nextQuestion() {
+            // 1. Pick Shape
+            const randomIndex = Math.floor(Math.random() * shapeData.length);
+            state.quizTarget = shapeData[randomIndex];
+            createShapeMesh(state.quizTarget);
+
+            // 2. Pick Question Type: 'type', 'faces', 'edges', 'vertices'
+            const types = ['type', 'faces', 'edges', 'vertices'];
+            // Increase chance of stats questions
+            const weightedTypes = ['type', 'type', 'faces', 'faces', 'edges', 'edges', 'vertices', 'vertices'];
+            state.quizQuestionType = weightedTypes[Math.floor(Math.random() * weightedTypes.length)];
+
+            // 3. Determine Correct Answer
+            if (state.quizQuestionType === 'type') {
+                state.quizCorrectAnswer = state.quizTarget.type;
+                state.highlightMode = 'faces'; // Standard view
+            } else {
+                state.quizCorrectAnswer = state.quizTarget.stats[state.quizQuestionType];
+                // Help user by highlighting the specific feature requested
+                state.highlightMode = state.quizQuestionType;
+            }
+            updateVisuals();
+
+            // 4. Update UI Text
+            const l = state.lang;
+            const qKey = 'q_' + state.quizQuestionType;
+            document.getElementById('quiz-question-title').innerText = dictionary[qKey][l];
+
+            // 5. Render Options
+            renderQuizOptions();
+            
+            // Reset Feedback
+            const fb = document.getElementById('quiz-feedback');
+            fb.classList.add('hidden');
+            fb.className = 'hidden p-4 rounded-lg text-center font-bold mb-4';
+        }
+
+        function renderQuizOptions() {
+            const container = document.getElementById('quiz-options-container');
+            container.innerHTML = '';
+            const l = state.lang;
+
+            if (state.quizQuestionType === 'type') {
+                // Option A: Prism
+                createOptionBtn(container, 'prism', dictionary['prism'][l]);
+                // Option B: Pyramid
+                createOptionBtn(container, 'pyramid', dictionary['pyramid'][l]);
+            } else {
+                // Generate Numeric Options
+                const correct = state.quizCorrectAnswer;
+                let options = new Set([correct]);
+                
+                // Generate distractors
+                while(options.size < 4) {
+                    let offset = Math.floor(Math.random() * 5) - 2; // -2 to +2
+                    if (offset === 0) offset = 3;
+                    let val = correct + offset;
+                    if (val > 2) options.add(val); // Min 3 faces/edges/verts usually
+                }
+                
+                // Convert to array and sort random
+                const optionsArr = Array.from(options).sort(() => Math.random() - 0.5);
+
+                optionsArr.forEach(val => {
+                    createOptionBtn(container, val, val.toString());
+                });
+            }
+        }
+
+        function createOptionBtn(container, value, text) {
+            const btn = document.createElement('button');
+            btn.className = 'quiz-option py-4 px-6 rounded-xl bg-white border-2 border-indigo-100 text-indigo-600 font-bold text-lg hover:bg-indigo-50 hover:border-indigo-300 transition shadow-sm';
+            btn.innerText = text;
+            btn.onclick = () => checkAnswer(value);
+            container.appendChild(btn);
+        }
+
+        function checkAnswer(userChoice) {
+            const correct = userChoice === state.quizCorrectAnswer;
+            const fb = document.getElementById('quiz-feedback');
+            const l = state.lang;
+            
+            fb.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+
+            if (correct) {
+                fb.classList.add('bg-green-100', 'text-green-700');
+                fb.innerHTML = l === 'zh' ? "✅ 答對了！" : "✅ Correct!";
+            } else {
+                fb.classList.add('bg-red-100', 'text-red-700');
+                
+                let answerText = state.quizCorrectAnswer;
+                // If answer was category type, translate it
+                if (state.quizQuestionType === 'type') {
+                    answerText = dictionary[state.quizCorrectAnswer][l];
+                }
+
+                fb.innerHTML = l === 'zh' 
+                    ? `❌ 答案是 ${answerText}` 
+                    : `❌ The answer is ${answerText}`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initUI();
+            initThree();
+        });
+
+    </script>
+</body>
+</html>
