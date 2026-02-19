@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>香港硬幣學習模擬器 HK Coins Learning</title>
+    <!-- Tailwind CSS for Layout -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Noto Sans HK', sans-serif;
+            background-color: #f0f9ff;
+            touch-action: manipulation; /* Improves touch response on iPad */
+        }
+
+        /* Coin Styles - Pure CSS generation to avoid external image dependencies */
+        .coin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2), inset 1px 1px 2px rgba(255,255,255,0.5);
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            position: relative;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .coin:active {
+            transform: scale(0.95);
+            box-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        /* Material Colors */
+        .bronze {
+            background: radial-gradient(circle at 30% 30%, #e6be8a, #cd7f32);
+            border: 2px solid #a0522d;
+            color: #5c3a21;
+        }
+        
+        .silver {
+            background: radial-gradient(circle at 30% 30%, #ffffff, #c0c0c0);
+            border: 2px solid #999;
+            color: #444;
+        }
+
+        .bicolor-outer {
+            background: #c0c0c0;
+            border: 2px solid #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .bicolor-inner {
+            background: radial-gradient(circle at 30% 30%, #e6be8a, #cd7f32);
+            border: 1px solid #a0522d;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #5c3a21;
+        }
+
+        /* Wavy edge simulation for $2 and 20c */
+        .wavy-edge {
+            border-style: dashed !important;
+        }
+
+        /* Specific Sizes (Relative sizing) */
+        .size-10c { width: 50px; height: 50px; font-size: 12px; }
+        .size-20c { width: 60px; height: 60px; font-size: 14px; }
+        .size-50c { width: 65px; height: 65px; font-size: 14px; }
+        .size-1d  { width: 70px; height: 70px; font-size: 16px; }
+        .size-2d  { width: 75px; height: 75px; font-size: 18px; }
+        .size-5d  { width: 80px; height: 80px; font-size: 20px; thickness: 4px; border-bottom-width: 4px; }
+        .size-10d { width: 85px; height: 85px; }
+        .size-10d .bicolor-inner { width: 55px; height: 55px; font-size: 18px; }
+
+        /* Animation */
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Scrollbar hiding for horizontal scroll areas */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md z-10 p-4 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-4">
+            <!-- Logo Placeholder -->
+            <div class="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden border border-gray-300">
+                <img src="logo.png" alt="Logo" class="w-full h-full object-contain" onerror="this.style.display='none'; this.parentNode.innerText='Logo'">
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-blue-600" id="app-title">香港的硬幣</h1>
+                <p class="text-xs text-gray-500 hidden md:block" id="app-subtitle">數學概念模擬器</p>
+            </div>
+        </div>
+        <button onclick="toggleLanguage()" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-2 rounded-full font-bold transition text-sm">
+            <span id="lang-btn-text">English</span>
+        </button>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-blue-600 text-white shrink-0">
+        <div class="max-w-4xl mx-auto flex">
+            <button onclick="switchTab('learn')" class="flex-1 py-3 md:py-4 text-center hover:bg-blue-700 font-bold border-b-4 border-transparent active-tab transition" id="tab-learn">
+                認識硬幣
+            </button>
+            <button onclick="switchTab('exchange')" class="flex-1 py-3 md:py-4 text-center hover:bg-blue-700 font-bold border-b-4 border-transparent transition" id="tab-exchange">
+                硬幣互換
+            </button>
+            <button onclick="switchTab('shop')" class="flex-1 py-3 md:py-4 text-center hover:bg-blue-700 font-bold border-b-4 border-transparent transition" id="tab-shop">
+                購物活動
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto bg-slate-50 relative p-4" id="main-container">
+        
+        <!-- View: Learn -->
+        <div id="view-learn" class="max-w-5xl mx-auto h-full grid grid-cols-1 md:grid-cols-2 gap-6 content-center">
+            <!-- Left: Grid of Coins -->
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200">
+                <h2 class="text-lg font-bold mb-4 text-slate-600 border-b pb-2" id="learn-instruction">點擊硬幣查看詳情</h2>
+                <div class="grid grid-cols-3 gap-6 justify-items-center py-4">
+                    <!-- Coins will be injected here via JS -->
+                    <div onclick="showCoinInfo(0.1)" class="flex flex-col items-center gap-2 group">
+                        <div class="coin bronze size-10c">10c</div>
+                    </div>
+                    <div onclick="showCoinInfo(0.2)" class="flex flex-col items-center gap-2 group">
+                        <div class="coin bronze wavy-edge size-20c">20c</div>
+                    </div>
+                    <div onclick="showCoinInfo(0.5)" class="flex flex-col items-center gap-2 group">
+                        <div class="coin bronze size-50c">50c</div>
+                    </div>
+                    <div onclick="showCoinInfo(1)" class="flex flex-col items-center gap-2 group">
+                        <div class="coin silver size-1d">$1</div>
+                    </div>
+                    <div onclick="showCoinInfo(2)" class="flex flex-col items-center gap-2 group">
+                        <div class="coin silver wavy-edge size-2d">$2</div>
+                    </div>
+                    <div onclick="showCoinInfo(5)" class="flex flex-col items-center gap-2 group">
+                        <div class="coin silver size-5d">$5</div>
+                    </div>
+                    <div onclick="showCoinInfo(10)" class="flex flex-col items-center gap-2 col-span-3 group">
+                        <div class="coin bicolor-outer size-10d"><div class="bicolor-inner">$10</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Detail Panel -->
+            <div class="bg-blue-50 p-6 rounded-2xl border-2 border-blue-100 flex flex-col justify-center items-center text-center">
+                <div id="coin-detail-placeholder" class="text-slate-400">
+                    <svg class="w-16 h-16 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span id="learn-placeholder-text">請選擇一枚硬幣</span>
+                </div>
+                <div id="coin-detail-content" class="hidden w-full">
+                    <div id="detail-coin-visual" class="mb-6 flex justify-center scale-150 transform origin-center py-4"></div>
+                    <h3 id="detail-value" class="text-3xl font-bold text-blue-700 mb-2"></h3>
+                    <div class="space-y-3 text-left bg-white p-4 rounded-xl shadow-sm w-full">
+                        <div class="flex justify-between border-b pb-1">
+                            <span class="text-slate-500" id="label-shape">形狀</span>
+                            <span class="font-bold" id="detail-shape"></span>
+                        </div>
+                        <div class="flex justify-between border-b pb-1">
+                            <span class="text-slate-500" id="label-color">顏色</span>
+                            <span class="font-bold" id="detail-color"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-500" id="label-composition">特徵</span>
+                            <span class="font-bold" id="detail-desc"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Exchange -->
+        <div id="view-exchange" class="hidden max-w-4xl mx-auto h-full flex flex-col">
+            <div class="bg-white p-6 rounded-2xl shadow-lg mb-6 text-center">
+                <h2 class="text-xl font-bold mb-2" id="exchange-title">硬幣互換</h2>
+                <p class="text-slate-500 mb-6" id="exchange-desc">觀察左邊的硬幣，右邊需要多少個小面額硬幣才相等？</p>
+                
+                <div class="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-12 py-8 bg-slate-50 rounded-xl">
+                    <!-- Left Side (Target) -->
+                    <div class="flex flex-col items-center">
+                        <div id="ex-target-coin" class="mb-2 transform scale-125"></div>
+                        <span class="font-bold text-lg">=</span>
+                    </div>
+
+                    <!-- Right Side (Equation) -->
+                    <div class="flex flex-wrap justify-center gap-2 max-w-xs md:max-w-md p-4 bg-white rounded-lg shadow-inner min-h-[100px] items-center" id="ex-result-area">
+                        <!-- Result coins generated here -->
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-center gap-4">
+                     <button onclick="prevExchange()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg" id="btn-prev">上一題</button>
+                     <button onclick="nextExchange()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-md" id="btn-next">下一題</button>
+                </div>
+                
+                <p id="ex-explanation" class="mt-4 text-lg font-bold text-green-600"></p>
+            </div>
+        </div>
+
+        <!-- View: Shop -->
+        <div id="view-shop" class="hidden max-w-5xl mx-auto h-full flex flex-col md:flex-row gap-6">
+            <!-- Left: Shop Item & Tray -->
+            <div class="flex-1 bg-white p-6 rounded-2xl shadow-lg flex flex-col justify-between relative">
+                <!-- Product -->
+                <div class="flex items-center gap-6 mb-6 border-b pb-6">
+                    <div class="w-24 h-24 bg-orange-100 rounded-xl flex items-center justify-center text-4xl shadow-sm border border-orange-200" id="shop-item-emoji">🍎</div>
+                    <div>
+                        <div class="text-sm text-gray-500 mb-1" id="shop-buy-label">購買物品</div>
+                        <div class="text-2xl font-bold text-slate-800" id="shop-item-name">蘋果</div>
+                        <div class="text-3xl font-bold text-green-600 mt-1" id="shop-item-price">$3.50</div>
+                    </div>
+                    <button onclick="newShopItem()" class="ml-auto text-blue-500 text-sm hover:underline" id="shop-skip">跳過/換一個</button>
+                </div>
+
+                <!-- Payment Tray (Drop Zone) -->
+                <div class="flex-1 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 p-4 relative flex flex-col items-center justify-start transition-colors" id="payment-tray">
+                    <div class="text-slate-400 mb-2 text-sm" id="tray-label">點擊下方硬幣放入此處</div>
+                    <div id="tray-coins" class="flex flex-wrap justify-center gap-3 w-full">
+                        <!-- Coins added here -->
+                    </div>
+                    
+                    <!-- Total Overlay -->
+                    <div class="absolute bottom-4 right-4 bg-white px-4 py-2 rounded-lg shadow-md border font-mono">
+                        <span class="text-slate-500 text-xs block" id="label-total">目前總額</span>
+                        <span class="text-xl font-bold" id="tray-total">$0.00</span>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="mt-4">
+                    <button onclick="checkPayment()" class="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold text-xl shadow-lg transform transition active:scale-95" id="btn-pay">
+                        付款 Pay
+                    </button>
+                    <p id="shop-feedback" class="text-center mt-2 font-bold h-6"></p>
+                </div>
+            </div>
+
+            <!-- Right: Wallet (Coin Selector) -->
+            <div class="md:w-64 bg-slate-800 p-4 rounded-2xl shadow-xl flex flex-col shrink-0">
+                <h3 class="text-white font-bold mb-4 text-center border-b border-slate-600 pb-2" id="wallet-title">錢包</h3>
+                <div class="grid grid-cols-2 gap-4 overflow-y-auto no-scrollbar justify-items-center">
+                    <div onclick="addToTray(10)" class="cursor-pointer hover:scale-110 transition"><div class="coin bicolor-outer size-10d scale-75"><div class="bicolor-inner">$10</div></div></div>
+                    <div onclick="addToTray(5)" class="cursor-pointer hover:scale-110 transition"><div class="coin silver size-5d scale-75">$5</div></div>
+                    <div onclick="addToTray(2)" class="cursor-pointer hover:scale-110 transition"><div class="coin silver wavy-edge size-2d scale-75">$2</div></div>
+                    <div onclick="addToTray(1)" class="cursor-pointer hover:scale-110 transition"><div class="coin silver size-1d scale-75">$1</div></div>
+                    <div onclick="addToTray(0.5)" class="cursor-pointer hover:scale-110 transition"><div class="coin bronze size-50c scale-90">50c</div></div>
+                    <div onclick="addToTray(0.2)" class="cursor-pointer hover:scale-110 transition"><div class="coin bronze wavy-edge size-20c scale-90">20c</div></div>
+                    <div onclick="addToTray(0.1)" class="cursor-pointer hover:scale-110 transition"><div class="coin bronze size-10c scale-90">10c</div></div>
+                </div>
+                <div class="mt-auto pt-4 text-center">
+                    <button onclick="clearTray()" class="text-red-300 text-sm hover:text-white underline" id="btn-clear">清空托盤</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- Data & State ---
+        let currentLang = 'zh'; // 'zh' or 'en'
+        let currentTab = 'learn';
+        let currentShopTotal = 0;
+        let targetShopPrice = 0;
+        let currentExchangeIndex = 0;
+
+        const content = {
+            zh: {
+                title: "香港的硬幣",
+                subtitle: "數學概念模擬器",
+                learn: "認識硬幣",
+                exchange: "硬幣互換",
+                shop: "購物活動",
+                learnInst: "點擊硬幣查看詳情",
+                placeholder: "請選擇一枚硬幣",
+                shape: "形狀",
+                color: "顏色",
+                comp: "特徵",
+                bronze: "青銅色",
+                silver: "銀色",
+                bicolor: "雙色 (外銀內銅)",
+                round: "圓形",
+                wavy: "波浪形圓邊",
+                desc_10c: "面值最小的硬幣。",
+                desc_20c: "邊緣是波浪形的。",
+                desc_50c: "中等大小的青銅硬幣。",
+                desc_1d:  "薄身，最常見的硬幣。",
+                desc_2d:  "邊緣波浪形，比1元大。",
+                desc_5d:  "厚身，邊緣有凹槽。",
+                desc_10d: "面值最大，雙色設計。",
+                exTitle: "硬幣互換",
+                exDesc: "觀察左邊的硬幣，右邊顯示了等值的組合。",
+                prev: "上一個",
+                next: "下一個",
+                eqText: "等於",
+                shopItem: "購買物品",
+                pay: "付款",
+                trayLabel: "點擊右側硬幣放入此處",
+                total: "目前總額",
+                wallet: "錢包",
+                clear: "清空",
+                skip: "換一個物品",
+                correct: "正確！付款成功！",
+                wrong_low: "金額不足！",
+                wrong_high: "金額過多！",
+                items: [
+                    { name: "蘋果", emoji: "🍎" },
+                    { name: "牛奶", emoji: "🥛" },
+                    { name: "麵包", emoji: "🍞" },
+                    { name: "筆記本", emoji: "📓" },
+                    { name: "果汁", emoji: "🧃" },
+                    { name: "雪糕", emoji: "🍦" }
+                ]
+            },
+            en: {
+                title: "Hong Kong Coins",
+                subtitle: "Math Concept Simulator",
+                learn: "Learn Coins",
+                exchange: "Exchange",
+                shop: "Shopping",
+                learnInst: "Click a coin for details",
+                placeholder: "Select a coin",
+                shape: "Shape",
+                color: "Color",
+                comp: "Feature",
+                bronze: "Bronze",
+                silver: "Silver",
+                bicolor: "Bi-color",
+                round: "Round",
+                wavy: "Wavy Edge",
+                desc_10c: "Smallest value coin.",
+                desc_20c: "Has a wavy edge.",
+                desc_50c: "Medium sized bronze coin.",
+                desc_1d:  "Thin, very common coin.",
+                desc_2d:  "Wavy edge, larger than $1.",
+                desc_5d:  "Thick with grooved edge.",
+                desc_10d: "Largest value, two colors.",
+                exTitle: "Coin Exchange",
+                exDesc: "Observe the coin on the left. The right shows equivalent smaller coins.",
+                prev: "Previous",
+                next: "Next",
+                eqText: "Equals",
+                shopItem: "Buy Item",
+                pay: "Pay",
+                trayLabel: "Click coins from wallet to add",
+                total: "Current Total",
+                wallet: "Wallet",
+                clear: "Clear Tray",
+                skip: "Skip Item",
+                correct: "Correct! Paid successfully!",
+                wrong_low: "Not enough money!",
+                wrong_high: "Too much money!",
+                items: [
+                    { name: "Apple", emoji: "🍎" },
+                    { name: "Milk", emoji: "🥛" },
+                    { name: "Bread", emoji: "🍞" },
+                    { name: "Notebook", emoji: "📓" },
+                    { name: "Juice", emoji: "🧃" },
+                    { name: "Ice Cream", emoji: "🍦" }
+                ]
+            }
+        };
+
+        const coinData = {
+            0.1: { val: 0.1,  text: "10c", class: "bronze size-10c", shapeKey: "round", colorKey: "bronze", descKey: "desc_10c" },
+            0.2: { val: 0.2,  text: "20c", class: "bronze wavy-edge size-20c", shapeKey: "wavy", colorKey: "bronze", descKey: "desc_20c" },
+            0.5: { val: 0.5,  text: "50c", class: "bronze size-50c", shapeKey: "round", colorKey: "bronze", descKey: "desc_50c" },
+            1:   { val: 1,    text: "$1",  class: "silver size-1d", shapeKey: "round", colorKey: "silver", descKey: "desc_1d" },
+            2:   { val: 2,    text: "$2",  class: "silver wavy-edge size-2d", shapeKey: "wavy", colorKey: "silver", descKey: "desc_2d" },
+            5:   { val: 5,    text: "$5",  class: "silver size-5d", shapeKey: "round", colorKey: "silver", descKey: "desc_5d" },
+            10:  { val: 10,   text: "$10", class: "bicolor-outer size-10d", inner: "$10", shapeKey: "round", colorKey: "bicolor", descKey: "desc_10d" }
+        };
+
+        const exchangeScenarios = [
+            { target: 0.2, parts: [0.1, 0.1] },
+            { target: 0.5, parts: [0.2, 0.2, 0.1] },
+            { target: 1,   parts: [0.5, 0.5] },
+            { target: 2,   parts: [1, 1] },
+            { target: 5,   parts: [2, 2, 1] },
+            { target: 10,  parts: [5, 5] },
+            { target: 2,   parts: [0.5, 0.5, 0.5, 0.5] } // Bonus example
+        ];
+
+        // --- Core Functions ---
+
+        function init() {
+            updateLanguageUI();
+            newShopItem();
+            loadExchange(0);
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'zh' ? 'en' : 'zh';
+            document.getElementById('lang-btn-text').innerText = currentLang === 'zh' ? 'English' : '中文';
+            updateLanguageUI();
+        }
+
+        function updateLanguageUI() {
+            const txt = content[currentLang];
+            
+            // Header & Nav
+            document.getElementById('app-title').innerText = txt.title;
+            document.getElementById('app-subtitle').innerText = txt.subtitle;
+            document.getElementById('tab-learn').innerText = txt.learn;
+            document.getElementById('tab-exchange').innerText = txt.exchange;
+            document.getElementById('tab-shop').innerText = txt.shop;
+
+            // Learn Tab
+            document.getElementById('learn-instruction').innerText = txt.learnInst;
+            document.getElementById('learn-placeholder-text').innerText = txt.placeholder;
+            document.getElementById('label-shape').innerText = txt.shape;
+            document.getElementById('label-color').innerText = txt.color;
+            document.getElementById('label-composition').innerText = txt.comp;
+
+            // Exchange Tab
+            document.getElementById('exchange-title').innerText = txt.exTitle;
+            document.getElementById('exchange-desc').innerText = txt.exDesc;
+            document.getElementById('btn-prev').innerText = txt.prev;
+            document.getElementById('btn-next').innerText = txt.next;
+            loadExchange(currentExchangeIndex); // Refresh text description in exchange
+
+            // Shop Tab
+            document.getElementById('shop-buy-label').innerText = txt.shopItem;
+            document.getElementById('btn-pay').innerText = txt.pay;
+            document.getElementById('tray-label').innerText = txt.trayLabel;
+            document.getElementById('label-total').innerText = txt.total;
+            document.getElementById('wallet-title').innerText = txt.wallet;
+            document.getElementById('btn-clear').innerText = txt.clear;
+            document.getElementById('shop-skip').innerText = txt.skip;
+            
+            // Update item name in shop if it exists
+            const itemElement = document.getElementById('shop-item-name');
+            if(itemElement.dataset.index) {
+                itemElement.innerText = txt.items[itemElement.dataset.index].name;
+            }
+        }
+
+        function switchTab(tabName) {
+            // Hide all
+            document.getElementById('view-learn').classList.add('hidden');
+            document.getElementById('view-exchange').classList.add('hidden');
+            document.getElementById('view-shop').classList.add('hidden');
+            
+            // Remove active styles
+            document.getElementById('tab-learn').classList.remove('border-white', 'opacity-100');
+            document.getElementById('tab-exchange').classList.remove('border-white', 'opacity-100');
+            document.getElementById('tab-shop').classList.remove('border-white', 'opacity-100');
+            
+            // Reset base styles
+            ['learn', 'exchange', 'shop'].forEach(t => {
+                const el = document.getElementById('tab-'+t);
+                el.classList.remove('border-white');
+                el.classList.add('border-transparent');
+            });
+
+            // Show current
+            document.getElementById('view-' + tabName).classList.remove('hidden');
+            const activeBtn = document.getElementById('tab-' + tabName);
+            activeBtn.classList.remove('border-transparent');
+            activeBtn.classList.add('border-white');
+            
+            currentTab = tabName;
+        }
+
+        // --- Helper: HTML Coin Generator ---
+        function getCoinHTML(value, scale = 1) {
+            const c = coinData[value];
+            if (!c) return '';
+            
+            let html = '';
+            if (value === 10) {
+                html = `<div class="coin ${c.class}" style="transform: scale(${scale})"><div class="bicolor-inner">${c.inner}</div></div>`;
+            } else {
+                html = `<div class="coin ${c.class}" style="transform: scale(${scale})">${c.text}</div>`;
+            }
+            return html;
+        }
+
+        // --- Tab 1: Learn Logic ---
+        function showCoinInfo(val) {
+            const data = coinData[val];
+            const txt = content[currentLang];
+            
+            document.getElementById('coin-detail-placeholder').classList.add('hidden');
+            document.getElementById('coin-detail-content').classList.remove('hidden');
+            
+            document.getElementById('detail-coin-visual').innerHTML = getCoinHTML(val);
+            document.getElementById('detail-value').innerText = data.text;
+            document.getElementById('detail-shape').innerText = txt[data.shapeKey];
+            document.getElementById('detail-color').innerText = txt[data.colorKey];
+            document.getElementById('detail-desc').innerText = txt[data.descKey];
+        }
+
+        // --- Tab 2: Exchange Logic ---
+        function loadExchange(index) {
+            currentExchangeIndex = index;
+            const scenario = exchangeScenarios[index];
+            const txt = content[currentLang];
+
+            // Render Target
+            document.getElementById('ex-target-coin').innerHTML = getCoinHTML(scenario.target, 1.2);
+            
+            // Render Result Parts
+            const resultContainer = document.getElementById('ex-result-area');
+            resultContainer.innerHTML = '';
+            scenario.parts.forEach((val, i) => {
+                // Add plus sign if not first
+                if(i > 0) {
+                    const plus = document.createElement('span');
+                    plus.innerText = "+";
+                    plus.className = "text-slate-400 font-bold mx-1";
+                    resultContainer.appendChild(plus);
+                }
+                const div = document.createElement('div');
+                div.innerHTML = getCoinHTML(val, 0.9);
+                div.className = "animate-pop";
+                div.style.animationDelay = (i * 0.1) + "s";
+                resultContainer.appendChild(div);
+            });
+
+            // Explanation text
+            const totalVal = scenario.target < 1 ? (scenario.target * 100) + " cents" : "$" + scenario.target;
+            document.getElementById('ex-explanation').innerText = `1 x ${coinData[scenario.target].text} = ${scenario.parts.length} x ${coinData[scenario.parts[0]].text}`;
+
+            // Button states
+            document.getElementById('btn-prev').disabled = index === 0;
+            document.getElementById('btn-prev').classList.toggle('opacity-50', index === 0);
+            document.getElementById('btn-next').disabled = index === exchangeScenarios.length - 1;
+            document.getElementById('btn-next').classList.toggle('opacity-50', index === exchangeScenarios.length - 1);
+        }
+
+        function nextExchange() {
+            if (currentExchangeIndex < exchangeScenarios.length - 1) {
+                loadExchange(currentExchangeIndex + 1);
+            }
+        }
+
+        function prevExchange() {
+            if (currentExchangeIndex > 0) {
+                loadExchange(currentExchangeIndex - 1);
+            }
+        }
+
+        // --- Tab 3: Shop Logic ---
+        function newShopItem() {
+            // Pick random item
+            const txt = content[currentLang];
+            const idx = Math.floor(Math.random() * txt.items.length);
+            const item = txt.items[idx];
+            
+            // Generate random price between $0.5 and $15.0 in 0.1 increments
+            let price = (Math.floor(Math.random() * 30) + 1) * 0.5; // multiples of 0.5
+            // Add some variety (some non-50c endings like $1.20)
+            if(Math.random() > 0.5) price += 0.2; 
+            price = parseFloat(price.toFixed(1));
+
+            targetShopPrice = price;
+            
+            document.getElementById('shop-item-emoji').innerText = item.emoji;
+            document.getElementById('shop-item-name').innerText = item.name;
+            document.getElementById('shop-item-name').dataset.index = idx; // Store index for translation
+            document.getElementById('shop-item-price').innerText = "$" + price.toFixed(1) + (price % 1 === 0 ? "0" : ""); // Ensure 2 decimals visually if needed, usually toFixed(2) is safer but HK coins are simple
+
+            clearTray();
+            document.getElementById('shop-feedback').innerText = "";
+            document.getElementById('payment-tray').classList.remove('border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
+        }
+
+        function addToTray(val) {
+            currentShopTotal += val;
+            currentShopTotal = Math.round(currentShopTotal * 10) / 10; // Fix float precision
+
+            const coinDiv = document.createElement('div');
+            coinDiv.innerHTML = getCoinHTML(val, 0.8);
+            coinDiv.className = "cursor-pointer hover:scale-95 transition animate-pop";
+            coinDiv.onclick = function() {
+                this.remove();
+                currentShopTotal -= val;
+                currentShopTotal = Math.round(currentShopTotal * 10) / 10;
+                updateTrayDisplay();
+            };
+            document.getElementById('tray-coins').appendChild(coinDiv);
+            
+            updateTrayDisplay();
+            
+            // Reset feedback styles on interaction
+            document.getElementById('shop-feedback').innerText = "";
+            document.getElementById('payment-tray').classList.remove('border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
+        }
+
+        function updateTrayDisplay() {
+            document.getElementById('tray-total').innerText = "$" + currentShopTotal.toFixed(1) + "0";
+            
+            const trayLabel = document.getElementById('tray-label');
+            if (currentShopTotal > 0) trayLabel.style.opacity = 0;
+            else trayLabel.style.opacity = 1;
+        }
+
+        function clearTray() {
+            currentShopTotal = 0;
+            document.getElementById('tray-coins').innerHTML = '';
+            updateTrayDisplay();
+            document.getElementById('shop-feedback').innerText = "";
+            document.getElementById('payment-tray').classList.remove('border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
+        }
+
+        function checkPayment() {
+            const txt = content[currentLang];
+            const feedback = document.getElementById('shop-feedback');
+            const tray = document.getElementById('payment-tray');
+
+            // Tolerance for floating point
+            const diff = Math.abs(currentShopTotal - targetShopPrice);
+
+            tray.classList.remove('border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
+
+            if (diff < 0.01) {
+                // Success
+                feedback.innerText = txt.correct;
+                feedback.className = "text-center mt-2 font-bold h-6 text-green-600";
+                tray.classList.add('border-green-500', 'bg-green-50');
+                
+                // Confetti or visual cue could go here
+                setTimeout(() => {
+                   newShopItem();
+                }, 1500);
+            } else if (currentShopTotal < targetShopPrice) {
+                feedback.innerText = txt.wrong_low;
+                feedback.className = "text-center mt-2 font-bold h-6 text-red-500";
+                tray.classList.add('border-red-500', 'bg-red-50');
+            } else {
+                feedback.innerText = txt.wrong_high;
+                feedback.className = "text-center mt-2 font-bold h-6 text-orange-500";
+                tray.classList.add('border-red-500', 'bg-red-50');
+            }
+        }
+
+        // Initialize
+        init();
+
+    </script>
+</body>
+</html>
