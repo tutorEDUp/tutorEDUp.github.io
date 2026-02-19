@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>加法與減法(三) | Addition & Subtraction (III)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Nunito:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Nunito', 'Noto Sans TC', sans-serif;
+            background-color: #f0f9ff;
+            overscroll-behavior-y: none;
+        }
+
+        .digit-input {
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border: 2px solid #cbd5e1;
+            border-radius: 0.5rem;
+            background-color: white;
+            transition: all 0.2s;
+            color: #334155;
+        }
+
+        .digit-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        .digit-input.correct {
+            background-color: #dcfce7;
+            border-color: #22c55e;
+            color: #15803d;
+        }
+
+        .digit-input.incorrect {
+            background-color: #fee2e2;
+            border-color: #ef4444;
+            color: #b91c1c;
+            animation: shake 0.5s;
+        }
+        
+        /* Style for Example Mode */
+        .digit-input.example-mode, .carry-input.example-mode {
+            background-color: #eff6ff; /* blue-50 */
+            color: #2563eb; /* blue-600 */
+            border-color: #60a5fa;
+            font-weight: 800;
+        }
+
+        .active-column {
+            background-color: #fff7ed; /* orange-50 */
+            border-radius: 8px;
+            box-shadow: 0 0 0 2px #fdba74;
+        }
+
+        .carry-input {
+            width: 2rem;
+            height: 2rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin: 0 auto;
+            border: 1px dashed #94a3b8;
+            color: #ef4444;
+            text-align: center;
+            background-color: transparent;
+        }
+
+        .math-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* Th, H, T, O */
+            gap: 0.5rem;
+            max-width: 320px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .operator-cell {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #64748b;
+        }
+
+        .line-separator {
+            grid-column: span 4;
+            height: 4px;
+            background-color: #334155;
+            border-radius: 2px;
+            margin-top: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Subtraction Visuals */
+        .crossed-out {
+            position: relative;
+            color: #94a3b8 !important;
+        }
+        .crossed-out::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80%;
+            height: 2px;
+            background-color: #ef4444;
+            transform: translate(-50%, -50%) rotate(-45deg);
+        }
+        
+        .borrow-helper {
+            position: absolute;
+            top: -5px;
+            left: 0;
+            font-size: 0.8rem;
+            color: #ef4444;
+            font-weight: bold;
+            background: white;
+            padding: 0 2px;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        
+        .number-cell {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+
+        .btn-pop:active {
+            transform: scale(0.95);
+        }
+        
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 md:w-16 md:h-16 relative flex-shrink-0">
+                    <img src="logo.png" alt="Logo" class="w-full h-full object-contain" onerror="this.style.display='none'; document.getElementById('logo-placeholder').style.display='flex'">
+                    <div id="logo-placeholder" class="hidden w-full h-full bg-blue-100 rounded-full items-center justify-center text-blue-500 font-bold text-xl">
+                        <i class="fas fa-shapes"></i>
+                    </div>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold text-blue-600" id="app-title">加法與減法(三)</h1>
+                    <p class="text-xs md:text-sm text-slate-500" id="app-subtitle">三位數運算模擬器</p>
+                </div>
+            </div>
+            
+            <button onclick="toggleLang()" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition-colors">
+                <i class="fas fa-globe text-slate-600"></i>
+                <span id="lang-btn" class="font-bold text-sm">EN</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col md:flex-row max-w-6xl mx-auto w-full p-4 gap-6">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 flex-shrink-0">
+            <div class="bg-white rounded-2xl shadow-sm p-4 sticky top-24">
+                <h2 class="text-lg font-bold mb-4 px-2 border-l-4 border-blue-500 pl-2" id="nav-title">學習模式</h2>
+                <div class="grid grid-cols-2 md:grid-cols-1 gap-2">
+                    <button onclick="setMode('add')" class="mode-btn active bg-blue-50 text-blue-600 p-3 rounded-xl text-left font-semibold hover:bg-blue-100 transition-all border border-blue-200 flex items-center gap-3">
+                        <i class="fas fa-plus-circle"></i> <span data-key="mode_add">三位數加法</span>
+                    </button>
+                    <button onclick="setMode('sub')" class="mode-btn bg-white text-slate-600 p-3 rounded-xl text-left font-semibold hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 flex items-center gap-3">
+                        <i class="fas fa-minus-circle"></i> <span data-key="mode_sub">三位數減法</span>
+                    </button>
+                    <button onclick="setMode('mixed')" class="mode-btn bg-white text-slate-600 p-3 rounded-xl text-left font-semibold hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 flex items-center gap-3">
+                        <i class="fas fa-calculator"></i> <span data-key="mode_mixed">混合運算</span>
+                    </button>
+                </div>
+                
+                <div class="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                    <h3 class="font-bold text-amber-800 mb-1" id="score-title">得分</h3>
+                    <div class="text-3xl font-black text-amber-600" id="score-display">0</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Workspace -->
+        <div class="flex-grow">
+            <!-- Problem Display -->
+            <div class="bg-white rounded-3xl shadow-lg p-6 md:p-10 text-center relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <i class="fas fa-puzzle-piece text-9xl"></i>
+                </div>
+
+                <div class="mb-8">
+                    <span class="text-2xl md:text-4xl font-mono font-bold text-slate-700 bg-slate-100 px-6 py-3 rounded-xl inline-block shadow-inner" id="h-equation">
+                        345 + 128 = ?
+                    </span>
+                    <p class="mt-2 text-slate-500 text-sm" id="instruction-text">請在直式中填入答案</p>
+                </div>
+
+                <!-- Example Guide Text (Only visible in Demo) -->
+                <div id="demo-guide" class="hidden mb-4 bg-purple-50 text-purple-700 px-4 py-2 rounded-lg font-bold text-lg border border-purple-200 animate-pulse text-center">
+                    準備演示...
+                </div>
+
+                <div id="workspace-container" class="flex flex-col items-center justify-center min-h-[300px]">
+                    <!-- Generated via JS -->
+                </div>
+
+                <!-- Main Controls -->
+                <div id="main-controls" class="mt-8 flex flex-wrap justify-center gap-4">
+                    <button onclick="startExampleMode()" class="btn-pop bg-purple-100 hover:bg-purple-200 text-purple-700 text-lg font-bold py-3 px-6 rounded-full shadow-sm flex items-center gap-2 transition-transform border border-purple-200">
+                        <i class="fas fa-play-circle"></i> <span data-key="btn_example">看例子</span>
+                    </button>
+                    <button onclick="checkAnswer()" class="btn-pop bg-green-500 hover:bg-green-600 text-white text-lg font-bold py-3 px-8 rounded-full shadow-lg shadow-green-200 flex items-center gap-2 transition-transform">
+                        <i class="fas fa-check"></i> <span data-key="btn_check">檢查答案</span>
+                    </button>
+                    <button onclick="nextProblem()" class="btn-pop bg-blue-500 hover:bg-blue-600 text-white text-lg font-bold py-3 px-8 rounded-full shadow-lg shadow-blue-200 flex items-center gap-2 transition-transform">
+                        <span data-key="btn_next">下一題</span> <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+
+                <!-- Demo Controls (Only visible in Demo) -->
+                <div id="demo-controls" class="hidden mt-8 flex-wrap justify-center gap-4">
+                    <button id="btn-demo-step" onclick="triggerNextStep()" class="btn-pop bg-purple-600 hover:bg-purple-700 text-white text-lg font-bold py-3 px-8 rounded-full shadow-lg shadow-purple-300 flex items-center gap-2 transition-transform">
+                        <span data-key="btn_step">下一步</span> <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button onclick="endExampleMode()" class="btn-pop bg-slate-200 hover:bg-slate-300 text-slate-700 text-lg font-bold py-3 px-6 rounded-full shadow-sm flex items-center gap-2 transition-transform">
+                        <i class="fas fa-stop"></i> <span data-key="btn_end">結束演示</span>
+                    </button>
+                </div>
+
+                <div id="feedback-msg" class="mt-4 h-8 font-bold text-lg transition-opacity duration-300 opacity-0"></div>
+            </div>
+            
+            <div class="mt-6 bg-indigo-50 rounded-2xl p-6 border border-indigo-100">
+                <h3 class="font-bold text-indigo-800 flex items-center gap-2">
+                    <i class="fas fa-lightbulb text-yellow-500"></i> <span data-key="tip_title">小提示</span>
+                </h3>
+                <p class="text-indigo-700 mt-2 text-sm md:text-base" id="tip-content">
+                    從個位數開始計算。如果相加超過 10，記得進位到十位數喔！
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        const state = {
+            lang: 'zh',
+            mode: 'add',
+            numbers: [],
+            operators: [],
+            answer: 0,
+            intermediateAnswer: 0,
+            score: 0,
+            isCorrect: false,
+            isDemonstrating: false,
+            demoStepResolver: null
+        };
+
+        const translations = {
+            zh: {
+                title: "加法與減法(三)",
+                subtitle: "三位數運算模擬器",
+                nav_title: "學習模式",
+                mode_add: "三位數加法",
+                mode_sub: "三位數減法",
+                mode_mixed: "混合運算",
+                btn_check: "檢查答案",
+                btn_next: "下一題",
+                btn_example: "看例子",
+                btn_step: "下一步",
+                btn_end: "結束演示",
+                score_title: "得分",
+                tip_title: "小提示",
+                tip_add: "從個位開始算。若和滿 10，記得向十位進 1。",
+                tip_sub: "從個位開始算。若不夠減，記得向十位退 1。",
+                tip_mixed: "混合運算要按順序，先算前兩個數。",
+                instruction: "請在直式中填入答案",
+                correct: "答對了！太棒了！",
+                incorrect: "再試一次喔！",
+                demo_start: "開始演示，請按「下一步」",
+                step1: "第一步",
+                step2: "第二步",
+                place_0: "個位",
+                place_1: "十位",
+                place_2: "百位",
+                place_3: "千位",
+                guide_calc: "計算 {place}",
+                guide_borrow: "不夠減，向 {place} 借位",
+                guide_carry: "和超過10，進位到 {place}",
+                guide_write: "填入答案",
+                guide_copy: "將答案抄到下一步"
+            },
+            en: {
+                title: "Addition & Subtraction (III)",
+                subtitle: "3-Digit Simulator",
+                nav_title: "Learning Modes",
+                mode_add: "3-Digit Addition",
+                mode_sub: "3-Digit Subtraction",
+                mode_mixed: "Mixed Operations",
+                btn_check: "Check",
+                btn_next: "Next",
+                btn_example: "Example",
+                btn_step: "Next Step",
+                btn_end: "Exit",
+                score_title: "Score",
+                tip_title: "Tip",
+                tip_add: "Start from ones. If sum > 9, carry 1 to tens.",
+                tip_sub: "Start from ones. If needed, borrow 1 from tens.",
+                tip_mixed: "Solve in order. Calculate the first two numbers first.",
+                instruction: "Fill in the vertical form",
+                correct: "Correct! Great job!",
+                incorrect: "Try again!",
+                demo_start: "Demo started. Press 'Next Step'.",
+                step1: "Step 1",
+                step2: "Step 2",
+                place_0: "Ones",
+                place_1: "Tens",
+                place_2: "Hundreds",
+                place_3: "Thousands",
+                guide_calc: "Calculate {place}",
+                guide_borrow: "Not enough, borrow from {place}",
+                guide_carry: "Sum > 9, carry to {place}",
+                guide_write: "Write answer",
+                guide_copy: "Copy answer to next step"
+            }
+        };
+
+        function init() {
+            setMode('add');
+            updateLangUI();
+        }
+
+        function toggleLang() {
+            state.lang = state.lang === 'zh' ? 'en' : 'zh';
+            document.getElementById('lang-btn').innerText = state.lang === 'zh' ? 'EN' : '中';
+            document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+            updateLangUI();
+            updateTip();
+        }
+
+        function updateLangUI() {
+            const t = translations[state.lang];
+            document.getElementById('app-title').innerText = t.title;
+            document.getElementById('app-subtitle').innerText = t.subtitle;
+            document.getElementById('nav-title').innerText = t.nav_title;
+            document.getElementById('score-title').innerText = t.score_title;
+            document.getElementById('instruction-text').innerText = t.instruction;
+            
+            document.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.getAttribute('data-key');
+                if(t[key]) el.innerText = t[key];
+            });
+        }
+
+        function setMode(mode) {
+            endExampleMode(); // Ensure we exit demo mode
+            state.mode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-50', 'text-blue-600', 'border-blue-200');
+                btn.classList.add('bg-white', 'text-slate-600', 'border-transparent');
+            });
+            const activeBtn = document.querySelector(`.mode-btn[onclick="setMode('${mode}')"]`);
+            activeBtn.classList.remove('bg-white', 'text-slate-600', 'border-transparent');
+            activeBtn.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-200');
+
+            updateTip();
+            nextProblem();
+        }
+
+        function updateTip() {
+            const t = translations[state.lang];
+            const tipEl = document.getElementById('tip-content');
+            if (state.mode === 'add') tipEl.innerText = t.tip_add;
+            else if (state.mode === 'sub') tipEl.innerText = t.tip_sub;
+            else tipEl.innerText = t.tip_mixed;
+        }
+
+        function nextProblem() {
+            if(state.isDemonstrating) endExampleMode();
+            
+            state.isCorrect = false;
+            document.getElementById('feedback-msg').style.opacity = '0';
+            
+            if (state.mode === 'add') {
+                const n1 = rand(125, 650);
+                const n2 = rand(125, 349);
+                state.numbers = [n1, n2];
+                state.operators = ['+'];
+                state.answer = n1 + n2;
+            } else if (state.mode === 'sub') {
+                const n1 = rand(200, 950);
+                const n2 = rand(100, n1 - 10);
+                state.numbers = [n1, n2];
+                state.operators = ['-'];
+                state.answer = n1 - n2;
+            } else {
+                const type = rand(1, 3);
+                if (type === 1) {
+                    const n1 = rand(200, 500);
+                    const n2 = rand(100, 300);
+                    const n3 = rand(50, n1+n2-50);
+                    state.numbers = [n1, n2, n3];
+                    state.operators = ['+', '-'];
+                    state.intermediateAnswer = n1 + n2;
+                    state.answer = n1 + n2 - n3;
+                } else if (type === 2) {
+                    const n1 = rand(400, 800);
+                    const n2 = rand(100, n1 - 100);
+                    const n3 = rand(50, 200);
+                    state.numbers = [n1, n2, n3];
+                    state.operators = ['-', '+'];
+                    state.intermediateAnswer = n1 - n2;
+                    state.answer = n1 - n2 + n3;
+                } else {
+                    const n1 = rand(100, 300);
+                    const n2 = rand(100, 300);
+                    const n3 = rand(100, 300);
+                    state.numbers = [n1, n2, n3];
+                    state.operators = ['+', '+'];
+                    state.intermediateAnswer = n1 + n2;
+                    state.answer = n1 + n2 + n3;
+                }
+            }
+            renderProblem();
+        }
+
+        function rand(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function renderProblem() {
+            // Guard clause: prevent rendering if numbers aren't ready
+            if (!state.numbers || state.numbers.length === 0) return;
+
+            let eqText = `${state.numbers[0]} ${state.operators[0]} ${state.numbers[1]}`;
+            if (state.numbers.length > 2) eqText += ` ${state.operators[1]} ${state.numbers[2]}`;
+            eqText += " = ?";
+            document.getElementById('h-equation').innerText = eqText;
+
+            const container = document.getElementById('workspace-container');
+            container.innerHTML = '';
+
+            if (state.mode === 'mixed') {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex flex-col md:flex-row gap-8 items-start';
+                
+                const step1Div = document.createElement('div');
+                step1Div.innerHTML = `<div class="text-sm font-bold text-slate-400 mb-2 text-center" data-key="step1">${translations[state.lang].step1}</div>`;
+                step1Div.appendChild(createVerticalGrid(state.numbers[0], state.numbers[1], state.operators[0], 'step1'));
+                wrapper.appendChild(step1Div);
+
+                const arrow = document.createElement('div');
+                arrow.className = 'hidden md:block text-slate-300 text-3xl self-center';
+                arrow.innerHTML = '<i class="fas fa-chevron-right"></i>';
+                wrapper.appendChild(arrow);
+
+                const step2Div = document.createElement('div');
+                step2Div.innerHTML = `<div class="text-sm font-bold text-slate-400 mb-2 text-center" data-key="step2">${translations[state.lang].step2}</div>`;
+                step2Div.appendChild(createVerticalGrid(null, state.numbers[2], state.operators[1], 'step2', true));
+                wrapper.appendChild(step2Div);
+
+                container.appendChild(wrapper);
+            } else {
+                container.appendChild(createVerticalGrid(state.numbers[0], state.numbers[1], state.operators[0], 'main'));
+            }
+        }
+
+        function createVerticalGrid(topNum, botNum, op, idPrefix, isStep2 = false) {
+            const grid = document.createElement('div');
+            grid.id = `grid-${idPrefix}`;
+            grid.className = 'math-grid bg-white p-4 rounded-xl border border-slate-100 shadow-sm transition-colors duration-300';
+            
+            // Row 1: Carries
+            for(let i=0; i<4; i++) {
+                if(i===0) grid.innerHTML += `<div></div>`; 
+                else grid.innerHTML += `<div class="flex justify-center pb-2"><input type="text" readonly class="carry-input" id="${idPrefix}-carry-${3-i}"></div>`;
+            }
+
+            // Updated getDigits to handle undefined
+            const getDigits = (num) => (num === null || num === undefined) ? [null, null, null, null] : num.toString().padStart(4, ' ').split('');
+            const topD = getDigits(topNum);
+            const botD = getDigits(botNum);
+
+            // Row 2: Top Number
+            for(let i=0; i<4; i++) {
+                if (topNum === null && isStep2) {
+                     grid.innerHTML += `<div class="h-12 w-full flex items-center justify-center"><input type="number" class="digit-input bg-blue-50 border-blue-200" id="${idPrefix}-top-${3-i}" placeholder="?"></div>`;
+                } else {
+                    grid.innerHTML += `
+                    <div class="h-12 w-full number-cell text-2xl font-bold text-slate-700 font-mono" id="${idPrefix}-top-display-${3-i}">
+                        ${topD[i].trim()}
+                    </div>`;
+                }
+            }
+
+            // Row 3: Operator + Bottom Number
+            grid.innerHTML += `<div class="operator-cell">${op}</div>`;
+            for(let i=1; i<4; i++) {
+                grid.innerHTML += `<div class="h-12 w-full number-cell text-2xl font-bold text-slate-700 font-mono" id="${idPrefix}-bot-display-${3-i}">
+                    ${botD[i].trim()}
+                </div>`;
+            }
+
+            // Row 4: Answer
+            grid.innerHTML += `<div class="line-separator"></div>`;
+            for(let i=3; i>=0; i--) {
+                grid.innerHTML += `<div class="h-14 w-full"><input type="number" id="${idPrefix}-ans-${i}" class="digit-input"></div>`;
+            }
+
+            return grid;
+        }
+
+        function fillInput(id, val, isExample = false) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = val;
+                if (isExample) el.classList.add('example-mode');
+            }
+        }
+
+        // --- Demo Logic ---
+
+        function triggerNextStep() {
+            if (state.demoStepResolver) {
+                state.demoStepResolver();
+                state.demoStepResolver = null;
+                // Temporarily disable button to prevent double clicks during animation
+                const btn = document.getElementById('btn-demo-step');
+                btn.disabled = true;
+                btn.classList.add('opacity-50');
+            }
+        }
+
+        function waitStep(guideTextKey, params = {}) {
+            return new Promise(resolve => {
+                // Update guide text
+                const t = translations[state.lang];
+                let text = t[guideTextKey] || guideTextKey;
+                for (const [key, val] of Object.entries(params)) {
+                    text = text.replace(`{${key}}`, val);
+                }
+                const guideEl = document.getElementById('demo-guide');
+                guideEl.innerText = text;
+                guideEl.classList.remove('hidden');
+
+                // Enable button
+                const btn = document.getElementById('btn-demo-step');
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+                
+                // Set resolver
+                state.demoStepResolver = resolve;
+            });
+        }
+
+        async function startExampleMode() {
+            if (state.isDemonstrating) return;
+            state.isDemonstrating = true;
+            
+            // UI Switch
+            document.getElementById('main-controls').classList.add('hidden');
+            document.getElementById('demo-controls').classList.remove('hidden');
+            document.getElementById('demo-controls').classList.add('flex');
+            
+            // Clean slate
+            renderProblem(); // Reset any user inputs
+            
+            const t = translations[state.lang];
+
+            try {
+                // Wait for first click
+                await waitStep('demo_start');
+
+                if (state.mode === 'mixed') {
+                    // Step 1
+                    await simulateStep(state.numbers[0], state.numbers[1], state.operators[0], 'step1');
+                    
+                    // Transfer
+                    await waitStep('guide_copy');
+                    const inter = state.intermediateAnswer;
+                    const interStr = inter.toString().padStart(4, '0');
+                    for(let i=0; i<4; i++) {
+                         const digit = i < interStr.length ? interStr[interStr.length - 1 - i] : '';
+                         if (digit !== '' && (i < 3 || parseInt(digit) > 0)) {
+                             fillInput(`step2-top-${i}`, digit, true);
+                             await new Promise(r => setTimeout(r, 100)); // Small visual delay
+                         }
+                    }
+
+                    // Step 2
+                    await simulateStep(inter, state.numbers[2], state.operators[1], 'step2');
+
+                } else {
+                    await simulateStep(state.numbers[0], state.numbers[1], state.operators[0], 'main');
+                }
+
+                // Done
+                document.getElementById('demo-guide').innerText = state.lang === 'zh' ? "演示完成" : "Demo Complete";
+                state.isCorrect = true; // Mark as done
+
+            } catch (e) {
+                // Handle exit
+                console.log("Demo exited");
+            }
+        }
+
+        function endExampleMode() {
+            state.isDemonstrating = false;
+            state.demoStepResolver = null;
+            document.getElementById('main-controls').classList.remove('hidden');
+            document.getElementById('demo-controls').classList.add('hidden');
+            document.getElementById('demo-controls').classList.remove('flex');
+            document.getElementById('demo-guide').classList.add('hidden');
+            // Force redraw to clean up styles
+            renderProblem();
+        }
+
+        async function simulateStep(top, bot, op, prefix) {
+            if(!state.isDemonstrating) return;
+            
+            const t = translations[state.lang];
+            const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+            // Setup working digits
+            let currentTopDigits = top.toString().padStart(4, '0').split('').reverse().map(d => parseInt(d));
+            let botDigits = bot.toString().padStart(4, '0').split('').reverse().map(d => parseInt(d));
+            let carry = 0;
+
+            for (let i = 0; i < 4; i++) {
+                if(!state.isDemonstrating) return;
+
+                // Stop if we are at thousands place and result < 1000
+                if (i === 3) {
+                    const res = op === '+' ? top + bot : top - bot;
+                    if (res < 1000) continue;
+                }
+
+                const placeName = t[`place_${i}`];
+                
+                // 1. Prompt Calculation
+                await waitStep('guide_calc', { place: placeName });
+
+                if (op === '+') {
+                    const topD = currentTopDigits[i] || 0;
+                    const botD = botDigits[i] || 0;
+                    const sum = topD + botD + carry;
+                    const resDigit = sum % 10;
+                    const nextCarry = Math.floor(sum / 10);
+
+                    // Show Carry Logic
+                    if (nextCarry > 0) {
+                        const nextPlace = t[`place_${i+1}`];
+                        await waitStep('guide_carry', { place: nextPlace });
+                        fillInput(`${prefix}-carry-${i+1}`, nextCarry, true);
+                    }
+                    
+                    // Show Answer Logic
+                    await waitStep('guide_write');
+                    fillInput(`${prefix}-ans-${i}`, resDigit, true);
+                    carry = nextCarry;
+
+                } else {
+                    // Subtraction
+                    let topD = currentTopDigits[i];
+                    const botD = botDigits[i];
+
+                    if (topD < botD) {
+                        // Borrow Needed
+                        let lenderIndex = i + 1;
+                        while(lenderIndex < 4 && currentTopDigits[lenderIndex] === 0) {
+                            lenderIndex++;
+                        }
+
+                        if (lenderIndex < 4) {
+                            const lenderPlace = t[`place_${lenderIndex}`];
+                            await waitStep('guide_borrow', { place: lenderPlace });
+
+                            // Visual Borrow Sequence (Auto animated for smoothness)
+                            for (let k = lenderIndex; k > i; k--) {
+                                // Cross out
+                                const lenderEl = document.getElementById(`${prefix}-top-display-${k}`);
+                                const lenderInput = document.getElementById(`${prefix}-top-${k}`);
+                                if(lenderEl) lenderEl.classList.add('crossed-out');
+                                if(lenderInput) lenderInput.classList.add('line-through', 'text-red-400');
+                                await delay(400);
+
+                                // Decr
+                                currentTopDigits[k]--;
+                                fillInput(`${prefix}-carry-${k}`, currentTopDigits[k], true);
+                                await delay(400);
+
+                                // Add 10
+                                currentTopDigits[k-1] += 10;
+                                const receiverEl = document.getElementById(`${prefix}-top-display-${k-1}`);
+                                const receiverInput = document.getElementById(`${prefix}-top-${k-1}`);
+                                
+                                const helper = document.createElement('div');
+                                helper.className = 'borrow-helper';
+                                helper.innerText = '10';
+
+                                if(receiverEl) receiverEl.appendChild(helper);
+                                if(receiverInput) {
+                                    receiverInput.parentElement.style.position = 'relative';
+                                    receiverInput.parentElement.appendChild(helper);
+                                }
+                                await delay(400);
+                            }
+                        }
+                        topD = currentTopDigits[i];
+                    }
+
+                    // Write Answer
+                    await waitStep('guide_write');
+                    const resDigit = topD - botD;
+                    fillInput(`${prefix}-ans-${i}`, resDigit, true);
+                }
+            }
+        }
+
+        // --- Standard Check Logic ---
+        function checkAnswer() {
+            if (state.isCorrect && !state.isDemonstrating) return;
+
+            const feedback = document.getElementById('feedback-msg');
+            let correct = true;
+
+            const validate = (id, expected) => {
+                const el = document.getElementById(id);
+                if (!el) return true;
+                const val = el.value === '' ? 0 : parseInt(el.value);
+                
+                if (val === parseInt(expected)) {
+                    el.classList.add('correct');
+                    el.classList.remove('incorrect');
+                    return true;
+                } else {
+                    el.classList.add('incorrect');
+                    el.classList.remove('correct');
+                    return false;
+                }
+            };
+
+            if (state.mode === 'mixed') {
+                const s1Ans = state.intermediateAnswer.toString().padStart(4, '0');
+                if (!validate('step1-ans-0', s1Ans[3])) correct = false;
+                if (!validate('step1-ans-1', s1Ans[2])) correct = false;
+                if (!validate('step1-ans-2', s1Ans[1])) correct = false;
+                if (state.intermediateAnswer >= 1000) if (!validate('step1-ans-3', s1Ans[0])) correct = false;
+
+                const transOk = validate('step2-top-0', s1Ans[3]) && validate('step2-top-1', s1Ans[2]) && validate('step2-top-2', s1Ans[1]);
+                if (!transOk) correct = false;
+
+                const finalAns = state.answer.toString().padStart(4, '0');
+                if (!validate('step2-ans-0', finalAns[3])) correct = false;
+                if (!validate('step2-ans-1', finalAns[2])) correct = false;
+                if (!validate('step2-ans-2', finalAns[1])) correct = false;
+                if (state.answer >= 1000) if (!validate('step2-ans-3', finalAns[0])) correct = false;
+
+            } else {
+                const ansStr = state.answer.toString().padStart(4, '0');
+                if (!validate('main-ans-0', ansStr[3])) correct = false;
+                if (!validate('main-ans-1', ansStr[2])) correct = false;
+                if (!validate('main-ans-2', ansStr[1])) correct = false;
+                if (state.answer >= 1000) if (!validate('main-ans-3', ansStr[0])) correct = false;
+            }
+
+            const t = translations[state.lang];
+            feedback.style.opacity = '1';
+
+            if (correct) {
+                feedback.innerText = t.correct;
+                feedback.className = "mt-4 h-8 font-bold text-lg text-green-600";
+                state.score += 10;
+                document.getElementById('score-display').innerText = state.score;
+                state.isCorrect = true;
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+            } else {
+                feedback.innerText = t.incorrect;
+                feedback.className = "mt-4 h-8 font-bold text-lg text-red-500";
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
