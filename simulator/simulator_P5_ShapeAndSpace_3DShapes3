@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五年級數學：摺紙圖樣與多視角觀察</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Nunito', 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
+        #canvas-container { 
+            width: 100%; height: 450px; 
+            background: radial-gradient(circle, #ffffff 0%, #f1f5f9 100%);
+            border-radius: 1.5rem; position: relative; overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .view-box { border: 2px solid #e2e8f0; border-radius: 0.75rem; background: white; padding: 10px; text-align: center; }
+        .view-label { font-size: 0.75rem; font-weight: bold; color: #64748b; margin-top: 5px; text-transform: uppercase; }
+        .tab-btn.active { background-color: #6366f1; color: white; border-color: #6366f1; }
+        input[type=range] { -webkit-appearance: none; width: 100%; height: 8px; background: #ddd; border-radius: 5px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: #6366f1; cursor: pointer; border: 2px solid white; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <nav class="bg-white shadow-sm sticky top-0 z-50 border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-20 bg-slate-100 rounded flex items-center justify-center border border-slate-200">
+                    <img src="logo.png" onerror="this.style.display='none'; this.parentNode.innerText='LOGO'" alt="Logo" class="max-h-full">
+                </div>
+                <h1 class="text-lg font-bold text-slate-900">
+                    摺紙圖樣與觀察圖形 <span class="text-indigo-600">Nets & Views</span>
+                </h1>
+            </div>
+            <button id="langToggle" class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold hover:bg-slate-200 transition">
+                EN / 中文
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        
+        <div class="flex justify-center mb-8">
+            <div class="bg-slate-200 p-1 rounded-xl inline-flex shadow-inner">
+                <button onclick="switchMode('learn')" id="tab-learn" class="tab-btn active px-8 py-2 rounded-lg text-sm font-bold transition-all">學習模式</button>
+                <button onclick="switchMode('quiz')" id="tab-quiz" class="tab-btn px-8 py-2 rounded-lg text-sm font-bold transition-all">挑戰測驗</button>
+            </div>
+        </div>
+
+        <div id="learn-panel" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-7 space-y-6">
+                <div id="canvas-container" class="group">
+                    <div class="absolute top-4 left-4 bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl shadow-sm text-xs font-bold text-slate-600 z-10 border border-white/50">
+                        <span id="instruction-text">拖曳旋轉觀察 3D 形狀</span>
+                    </div>
+                </div>
+
+                <div id="fold-control" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between mb-4">
+                        <span class="text-sm font-bold text-indigo-600 flex items-center gap-2">
+                            摺紙圖樣 (Net)
+                        </span>
+                        <span class="text-sm font-bold text-slate-400">立體圖形 (Solid)</span>
+                    </div>
+                    <input type="range" id="fold-slider" min="0" max="100" value="100">
+                    <p class="text-center text-xs text-slate-400 mt-2">拉動滑桿模擬摺疊過程</p>
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        從不同角度觀察
+                    </h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="view-box">
+                            <canvas id="top-view" width="80" height="80" class="mx-auto"></canvas>
+                            <div class="view-label">俯視圖</div>
+                        </div>
+                        <div class="view-box">
+                            <canvas id="front-view" width="80" height="80" class="mx-auto"></canvas>
+                            <div class="view-label">正視圖</div>
+                        </div>
+                        <div class="view-box">
+                            <canvas id="side-view" width="80" height="80" class="mx-auto"></canvas>
+                            <div class="view-label">側視圖</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-indigo-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-200">
+                    <h2 id="shape-title" class="text-2xl font-bold mb-2">正方體</h2>
+                    <p id="shape-desc" class="text-indigo-100 text-sm leading-relaxed mb-6">正方體的摺紙圖樣由 6 個正方形組成，共有 11 種不同的基本樣式。</p>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="loadShape('cube')" class="shape-opt bg-white/20 hover:bg-white/30 p-3 rounded-xl border border-white/20 text-center transition">
+                            <span class="block text-xl">🧊</span>
+                            <span class="text-xs font-bold">正方體</span>
+                        </button>
+                        <button onclick="loadShape('rect_prism')" class="shape-opt bg-white/20 hover:bg-white/30 p-3 rounded-xl border border-white/20 text-center transition">
+                            <span class="block text-xl">📦</span>
+                            <span class="text-xs font-bold">長方體</span>
+                        </button>
+                        <button onclick="loadShape('tri_prism')" class="shape-opt bg-white/20 hover:bg-white/30 p-3 rounded-xl border border-white/20 text-center transition">
+                            <span class="block text-xl">🧀</span>
+                            <span class="text-xs font-bold">三角柱</span>
+                        </button>
+                        <button onclick="loadShape('tri_pyramid')" class="shape-opt bg-white/20 hover:bg-white/30 p-3 rounded-xl border border-white/20 text-center transition">
+                            <span class="block text-xl">⛺</span>
+                            <span class="text-xs font-bold">三角錐</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="quiz-panel" class="hidden max-w-2xl mx-auto space-y-6">
+            <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+                <div class="bg-indigo-600 p-8 text-center text-white">
+                    <div id="quiz-badge" class="inline-block px-3 py-1 bg-indigo-400 rounded-full text-xs font-bold mb-3">LEVEL 1</div>
+                    <h2 id="quiz-question" class="text-2xl font-bold">這個摺紙圖樣可以組成哪種圖形？</h2>
+                </div>
+                <div class="p-8">
+                    <div id="quiz-visual" class="h-64 bg-slate-50 rounded-2xl mb-8 flex items-center justify-center border-2 border-dashed border-slate-200">
+                        </div>
+                    <div id="quiz-options" class="grid grid-cols-2 gap-4">
+                        </div>
+                    <div id="quiz-feedback" class="mt-6 hidden p-4 rounded-xl text-center font-bold"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const state = {
+            lang: 'zh',
+            mode: 'learn',
+            currentShape: 'cube',
+            foldValue: 1.0,
+            scene: null, camera: null, renderer: null, controls: null,
+            shapeGroup: new THREE.Group()
+        };
+
+        const shapeData = {
+            cube: {
+                title: "正方體",
+                desc: "正方體的摺紙圖樣由 6 個相等的正方形組成。並非所有 6 個相連的正方形都能摺成正方體喔！",
+                color: 0x6366f1,
+                stats: { faces: 6, edges: 12, vertices: 8 }
+            },
+            rect_prism: {
+                title: "長方體",
+                desc: "長方體的摺紙圖樣由 3 對全等的矩形組成。",
+                color: 0x10b981,
+                stats: { faces: 6, edges: 12, vertices: 8 }
+            },
+            tri_prism: {
+                title: "三角柱",
+                desc: "摺紙圖樣包含 2 個三角形（底面）和 3 個矩形（側面）。",
+                color: 0xf59e0b,
+                stats: { faces: 5, edges: 9, vertices: 6 }
+            },
+            tri_pyramid: {
+                title: "三角錐",
+                desc: "摺紙圖樣由 4 個三角形組成，其中一個是底面，三個是側面。",
+                color: 0xec4899,
+                stats: { faces: 4, edges: 6, vertices: 4 }
+            }
+        };
+
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+            state.scene = new THREE.Scene();
+            state.scene.background = null;
+
+            state.camera = new THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.1, 1000);
+            state.camera.position.set(4, 4, 4);
+
+            state.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            state.renderer.setSize(container.offsetWidth, container.offsetHeight);
+            state.renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(state.renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            state.scene.add(ambientLight);
+            const directLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directLight.position.set(5, 10, 7);
+            state.scene.add(directLight);
+
+            state.controls = new THREE.OrbitControls(state.camera, state.renderer.domElement);
+            state.controls.enableDamping = true;
+
+            state.scene.add(state.shapeGroup);
+            loadShape('cube');
+            animate();
+        }
+
+        function loadShape(type) {
+            state.currentShape = type;
+            const data = shapeData[type];
+            document.getElementById('shape-title').innerText = data.title;
+            document.getElementById('shape-desc').innerText = data.desc;
+
+            // 清除舊圖形
+            while(state.shapeGroup.children.length > 0) state.shapeGroup.remove(state.shapeGroup.children[0]);
+
+            let geometry;
+            if(type === 'cube') geometry = new THREE.BoxGeometry(2, 2, 2);
+            else if(type === 'rect_prism') geometry = new THREE.BoxGeometry(1.5, 3, 1.5);
+            else if(type === 'tri_prism') geometry = new THREE.CylinderGeometry(1.2, 1.2, 2.5, 3);
+            else if(type === 'tri_pyramid') geometry = new THREE.ConeGeometry(1.5, 2.5, 3);
+
+            const material = new THREE.MeshPhongMaterial({ 
+                color: data.color, 
+                flatShading: false, 
+                transparent: true, 
+                opacity: 0.9,
+                side: THREE.DoubleSide
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // 修正頂點和稜線缺失問題：使用 EdgesGeometry 並設置高 renderOrder
+            const edgesGeo = new THREE.EdgesGeometry(geometry);
+            const edgesLine = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0x312e81, linewidth: 2 }));
+            edgesLine.renderOrder = 1;
+            
+            mesh.add(edgesLine);
+            state.shapeGroup.add(mesh);
+            
+            // 重設動畫進度
+            document.getElementById('fold-slider').value = 100;
+            updateViews(type);
+        }
+
+        function updateViews(type) {
+            // 此處使用 2D Canvas 模擬三視圖，更符合小學教材的視覺感
+            const drawView = (canvasId, drawFn) => {
+                const canvas = document.getElementById(canvasId);
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, 80, 80);
+                ctx.strokeStyle = '#312e81';
+                ctx.fillStyle = '#e0e7ff';
+                ctx.lineWidth = 2;
+                drawFn(ctx);
+            };
+
+            const shapes = {
+                cube: {
+                    top: (ctx) => ctx.fillRect(20, 20, 40, 40) || ctx.strokeRect(20, 20, 40, 40),
+                    front: (ctx) => ctx.fillRect(20, 20, 40, 40) || ctx.strokeRect(20, 20, 40, 40),
+                    side: (ctx) => ctx.fillRect(20, 20, 40, 40) || ctx.strokeRect(20, 20, 40, 40)
+                },
+                rect_prism: {
+                    top: (ctx) => ctx.fillRect(25, 25, 30, 30) || ctx.strokeRect(25, 25, 30, 30),
+                    front: (ctx) => ctx.fillRect(25, 10, 30, 60) || ctx.strokeRect(25, 10, 30, 60),
+                    side: (ctx) => ctx.fillRect(25, 10, 30, 60) || ctx.strokeRect(25, 10, 30, 60)
+                },
+                tri_prism: {
+                    top: (ctx) => {
+                        ctx.beginPath(); ctx.moveTo(40, 20); ctx.lineTo(60, 55); ctx.lineTo(20, 55); ctx.closePath();
+                        ctx.fill(); ctx.stroke();
+                    },
+                    front: (ctx) => ctx.fillRect(20, 15, 40, 50) || ctx.strokeRect(20, 15, 40, 50),
+                    side: (ctx) => ctx.fillRect(25, 15, 30, 50) || ctx.strokeRect(25, 15, 30, 50)
+                },
+                tri_pyramid: {
+                    top: (ctx) => {
+                        ctx.beginPath(); ctx.moveTo(40, 20); ctx.lineTo(60, 55); ctx.lineTo(20, 55); ctx.closePath();
+                        ctx.fill(); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(40, 20); ctx.lineTo(40, 43); ctx.moveTo(60, 55); ctx.lineTo(40, 43); ctx.moveTo(20, 55); ctx.lineTo(40, 43); ctx.stroke();
+                    },
+                    front: (ctx) => {
+                        ctx.beginPath(); ctx.moveTo(40, 15); ctx.lineTo(65, 60); ctx.lineTo(15, 60); ctx.closePath();
+                        ctx.fill(); ctx.stroke();
+                    },
+                    side: (ctx) => {
+                        ctx.beginPath(); ctx.moveTo(40, 15); ctx.lineTo(60, 60); ctx.lineTo(20, 60); ctx.closePath();
+                        ctx.fill(); ctx.stroke();
+                    }
+                }
+            };
+
+            drawView('top-view', shapes[type].top);
+            drawView('front-view', shapes[type].front);
+            drawView('side-view', shapes[type].side);
+        }
+
+        function switchMode(mode) {
+            state.mode = mode;
+            document.getElementById('tab-learn').classList.toggle('active', mode === 'learn');
+            document.getElementById('tab-quiz').classList.toggle('active', mode === 'quiz');
+            document.getElementById('learn-panel').classList.toggle('hidden', mode !== 'learn');
+            document.getElementById('quiz-panel').classList.toggle('hidden', mode !== 'quiz');
+
+            if(mode === 'quiz') {
+                const quizVisual = document.getElementById('quiz-visual');
+                quizVisual.appendChild(state.renderer.domElement);
+                state.renderer.setSize(quizVisual.offsetWidth, quizVisual.offsetHeight);
+                startNewQuiz();
+            } else {
+                const learnVisual = document.getElementById('canvas-container');
+                learnVisual.appendChild(state.renderer.domElement);
+                state.renderer.setSize(learnVisual.offsetWidth, learnVisual.offsetHeight);
+                loadShape(state.currentShape);
+            }
+        }
+
+        function startNewQuiz() {
+            const types = Object.keys(shapeData);
+            const targetType = types[Math.floor(Math.random() * types.length)];
+            loadShape(targetType);
+            state.shapeGroup.rotation.set(Math.random(), Math.random(), 0); // 隨機旋轉增加難度
+            
+            // 摺紙測驗：設為 Net 狀態
+            document.getElementById('fold-slider').value = 0;
+            updateFolding(0);
+
+            const optionsContainer = document.getElementById('quiz-options');
+            optionsContainer.innerHTML = '';
+            
+            const distractors = types.sort(() => 0.5 - Math.random());
+            distractors.forEach(t => {
+                const btn = document.createElement('button');
+                btn.className = "bg-slate-100 hover:bg-indigo-50 border-2 border-slate-200 hover:border-indigo-500 py-4 rounded-2xl font-bold transition-all";
+                btn.innerText = shapeData[t].title;
+                btn.onclick = () => checkAnswer(t, targetType);
+                optionsContainer.appendChild(btn);
+            });
+            document.getElementById('quiz-feedback').classList.add('hidden');
+        }
+
+        function checkAnswer(choice, correct) {
+            const fb = document.getElementById('quiz-feedback');
+            fb.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+            if(choice === correct) {
+                fb.innerText = "✅ 答對了！非常優秀！";
+                fb.classList.add('bg-green-100', 'text-green-700');
+                // 答對時自動摺疊展現
+                let v = 0;
+                const anim = setInterval(() => {
+                    v += 2; updateFolding(v);
+                    if(v >= 100) { clearInterval(anim); setTimeout(startNewQuiz, 2000); }
+                }, 20);
+            } else {
+                fb.innerText = "❌ 不太對喔，再觀察一下圖樣。";
+                fb.classList.add('bg-red-100', 'text-red-700');
+            }
+        }
+
+        function updateFolding(val) {
+            // 模擬摺疊效果：縮放 Z 軸或旋轉子平面（此處簡化為透明度與比例轉換）
+            const scale = 0.2 + (val / 100) * 0.8;
+            state.shapeGroup.scale.set(scale, scale, scale);
+            state.shapeGroup.children[0].material.opacity = 0.4 + (val / 100) * 0.5;
+        }
+
+        document.getElementById('fold-slider').oninput = (e) => {
+            updateFolding(e.target.value);
+        };
+
+        function animate() {
+            requestAnimationFrame(animate);
+            state.controls.update();
+            state.renderer.render(state.scene, state.camera);
+        }
+
+        window.onload = () => {
+            initThree();
+            updateViews('cube');
+        };
+    </script>
+</body>
+</html>
