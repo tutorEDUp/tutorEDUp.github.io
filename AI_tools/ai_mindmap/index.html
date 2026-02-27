@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 心智圖生成器</title>
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* 隱藏捲軸但保留功能 */
+    ::-webkit-scrollbar {
+      width: 0px;
+      background: transparent;
+    }
+    /* 確保字體繼承 */
+    .font-inherit {
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen bg-slate-50 font-sans overflow-hidden text-slate-800">
+
+  <!-- Header & Controls -->
+  <header class="bg-white border-b border-slate-200 shadow-sm z-20 shrink-0">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 p-2 rounded-lg text-white">
+              <i data-lucide="network" class="w-6 h-6"></i>
+            </div>
+            <h1 class="text-xl font-bold text-slate-800 shrink-0">AI 心智圖生成器</h1>
+          </div>
+
+          <!-- API Key Input -->
+          <div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-200 transition-all">
+            <i data-lucide="key" class="w-4 h-4 text-slate-400"></i>
+            <input
+              type="password"
+              id="api-key-input"
+              placeholder="輸入 Qwen API Key (sk-...)"
+              class="bg-transparent border-none outline-none text-sm w-full sm:w-48 text-slate-700 placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <form id="generate-form" class="flex-1 w-full lg:max-w-2xl flex gap-2">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
+            <input
+              type="text"
+              id="topic-input"
+              value="量子電腦的原理與應用"
+              placeholder="輸入任何主題... (例如：第二次世界大戰、區塊鏈技術、如何學習寫程式)"
+              class="w-full pl-10 pr-4 py-2.5 bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 rounded-xl transition-all shadow-inner outline-none text-slate-700"
+            />
+          </div>
+          <button
+            type="submit"
+            id="generate-btn"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
+          >
+            <i data-lucide="sparkles" id="btn-icon-normal" class="w-5 h-5"></i>
+            <i data-lucide="loader-2" id="btn-icon-loading" class="w-5 h-5 animate-spin hidden"></i>
+            <span id="btn-text">生成</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Canvas Area -->
+  <main id="canvas" class="flex-1 relative overflow-hidden bg-slate-50 cursor-grab active:cursor-grabbing">
+    <!-- Grid Background -->
+    <div class="absolute inset-0 pointer-events-none opacity-20" 
+         style="background-image: radial-gradient(circle at 2px 2px, #94a3b8 1px, transparent 0); background-size: 32px 32px;">
+    </div>
+
+    <!-- Toolbar -->
+    <div class="absolute bottom-6 right-6 z-20 flex gap-2 bg-white/90 backdrop-blur shadow-lg p-2 rounded-xl border border-slate-200">
+      <button id="zoom-out-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="縮小">
+        <i data-lucide="zoom-out" class="w-5 h-5"></i>
+      </button>
+      <button id="reset-view-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="置中重置">
+        <i data-lucide="maximize" class="w-5 h-5"></i>
+      </button>
+      <button id="zoom-in-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="放大">
+        <i data-lucide="zoom-in" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Instructions -->
+    <div class="absolute top-6 left-6 z-20 bg-white/80 backdrop-blur shadow-sm p-4 rounded-xl border border-slate-200 text-sm text-slate-600 pointer-events-auto">
+      <p class="font-semibold text-slate-800 mb-2">操作指南</p>
+      <ul class="list-disc pl-4 space-y-1.5">
+        <li><span class="font-medium text-indigo-600">單擊節點</span>可直接編輯文字</li>
+        <li><span class="font-medium text-indigo-600">滑鼠移至節點</span>可新增或刪除</li>
+        <li>拖曳背景可平移畫布</li>
+        <li>Ctrl + 滾輪可縮放畫布</li>
+      </ul>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-container" class="absolute top-6 left-1/2 -translate-x-1/2 z-30 bg-red-50 border border-red-200 text-red-700 px-6 py-3 rounded-xl shadow-lg items-center gap-3 max-w-xl hidden">
+      <i data-lucide="alert-circle" class="w-6 h-6 shrink-0 text-red-500"></i>
+      <p id="error-text" class="text-sm"></p>
+    </div>
+
+    <!-- Mindmap Container -->
+    <div id="mindmap-transform-container" class="absolute top-1/2 left-1/2 origin-top-left transition-transform duration-75 ease-out">
+      <div id="mindmap-root" class="transition-opacity duration-500 opacity-100">
+        <!-- 樹狀圖將由 JS 動態渲染在這裡 -->
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // --- Initial Example Data ---
+    let mindmapData = {
+      name: "項羽的生平",
+      children: [
+        {
+          name: "出身與早年",
+          children: [
+            { name: "楚國貴族後裔 (項燕之孫)" },
+            { name: "少時力能扛鼎，才氣過人" },
+            { name: "跟隨叔父項梁在吳中起兵反秦" }
+          ]
+        },
+        {
+          name: "崛起與稱霸",
+          children: [
+            { name: "鉅鹿之戰", children: [{ name: "破釜沉舟，斬殺宋義" }, { name: "大破秦軍主力 (王離、章邯)" }] },
+            { name: "新安殺降 (坑殺秦降卒二十萬)" },
+            { name: "入關中", children: [{ name: "火燒阿房宮" }, { name: "殺秦降王子嬰" }] },
+            { name: "自立為「西楚霸王」" },
+            { name: "分封十八路諸侯 (埋下日後戰亂禍根)" }
+          ]
+        },
+        {
+          name: "楚漢相爭",
+          children: [
+            { name: "鴻門宴", children: [{ name: "范增獻計" }, { name: "項伯求情，錯失殺劉邦良機" }] },
+            { name: "彭城之戰", children: [{ name: "率三萬精兵星夜馳援" }, { name: "大破劉邦五十六萬聯軍" }] },
+            { name: "滎陽對峙 (陷入拉鋸戰)" },
+            { name: "鴻溝和議 (以鴻溝為界，中分天下)" }
+          ]
+        },
+        {
+          name: "敗亡",
+          children: [
+            { name: "垓下之戰", children: [{ name: "遭韓信等數十萬大軍合圍" }, { name: "四面楚歌，軍心渙散" }, { name: "霸王別姬 (虞姬自刎)" }] },
+            { name: "烏江自刎", children: [{ name: "突圍至烏江畔" }, { name: "自認「無顏見江東父老」拒絕渡江" }, { name: "戰死沙場，年僅30歲" }] }
+          ]
+        },
+        {
+          name: "歷史評價",
+          children: [
+            { name: "軍事奇才", children: [{ name: "「羽之神勇，千古無二」" }] },
+            { name: "政治短視", children: [{ name: "缺乏戰略眼光與政治手腕" }, { name: "匹夫之勇，婦人之仁" }] },
+            { name: "性格悲劇", children: [{ name: "剛愎自用，不善用人 (氣走范增)" }, { name: "殘暴多疑 (頻繁屠城殺降)" }] }
+          ]
+        }
+      ]
+    };
+
+    // --- State Variables ---
+    let transform = { x: 0, y: 0, scale: 1 };
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let isLoading = false;
+
+    // --- DOM Elements ---
+    const canvas = document.getElementById('canvas');
+    const transformContainer = document.getElementById('mindmap-transform-container');
+    const mindmapRoot = document.getElementById('mindmap-root');
+    const generateForm = document.getElementById('generate-form');
+    const topicInput = document.getElementById('topic-input');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const generateBtn = document.getElementById('generate-btn');
+    const btnIconNormal = document.getElementById('btn-icon-normal');
+    const btnIconLoading = document.getElementById('btn-icon-loading');
+    const btnText = document.getElementById('btn-text');
+    const errorContainer = document.getElementById('error-container');
+    const errorText = document.getElementById('error-text');
+
+    // --- Helper Functions ---
+    const escapeHTML = (str) => {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[tag]));
+    };
+
+    const getNodeClasses = (lvl) => {
+      switch (lvl) {
+        case 0: return "bg-slate-900 text-white shadow-xl text-lg font-bold border-2 border-slate-700 py-3 px-6 rounded-xl";
+        case 1: return "bg-indigo-600 text-white shadow-md font-semibold py-2 px-4 rounded-lg";
+        case 2: return "bg-blue-100 text-blue-900 shadow-sm font-medium py-2 px-4 rounded-md border border-blue-200";
+        default: return "bg-white text-slate-700 shadow-sm py-1.5 px-3 rounded-md border border-slate-200 text-sm";
+      }
+    };
+
+    const fetchWithRetry = async (url, options, maxRetries = 5) => {
+      let retries = 0;
+      while (retries < maxRetries) {
+        try {
+          const response = await fetch(url, options);
+          if (!response.ok) {
+            const errorStr = await response.text();
+            let serverMessage = `HTTP status: ${response.status}`;
+            let errorCode = '';
+            try {
+              const errorData = JSON.parse(errorStr);
+              serverMessage = errorData.message || errorData.error?.message || errorStr;
+              errorCode = errorData.code || errorData.error?.code || '';
+            } catch (e) {
+              serverMessage = errorStr || serverMessage;
+            }
+            if (response.status === 401) {
+              throw new Error(`授權失敗 (401) [${errorCode}]: ${serverMessage}。可能原因：1. 密鑰錯誤 2. 帳號未開通模型服務 3. 帳號欠費。`);
+            }
+            throw new Error(`[${errorCode}] ${serverMessage}`);
+          }
+          return await response.json();
+        } catch (error) {
+          retries++;
+          if (error.message.includes("401")) throw error;
+          if (retries >= maxRetries) throw error;
+          const delay = Math.pow(2, retries) * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    };
+
+    // --- Data Operations ---
+    const getTargetData = (pathStr) => {
+      if (!pathStr) return mindmapData;
+      const indices = pathStr.split(',').map(Number);
+      let current = mindmapData;
+      for (let i of indices) {
+        current = current.children[i];
+      }
+      return current;
+    };
+
+    const getParentDataAndIndex = (pathStr) => {
+      const indices = pathStr.split(',').map(Number);
+      const targetIndex = indices.pop();
+      let parent = mindmapData;
+      for (let i of indices) {
+        parent = parent.children[i];
+      }
+      return { parent, targetIndex };
+    };
+
+    const updateNode = (pathStr, newText) => {
+      const target = getTargetData(pathStr);
+      target.name = newText;
+      renderTree();
+    };
+
+    const addNode = (pathStr) => {
+      const target = getTargetData(pathStr);
+      if (!target.children) target.children = [];
+      target.children.push({ name: "新節點" });
+      renderTree();
+    };
+
+    const deleteNode = (pathStr) => {
+      if (!pathStr) return; // 不允許刪除根節點
+      const { parent, targetIndex } = getParentDataAndIndex(pathStr);
+      parent.children.splice(targetIndex, 1);
+      renderTree();
+    };
+
+    // --- Render Logic ---
+    const buildNodeHTML = (node, pathStr = "", level = 0, isRoot = true) => {
+      const hasChildren = node.children && node.children.length > 0;
+      const nodeClasses = getNodeClasses(level);
+      
+      let html = `<div class="flex items-center">`;
+
+      // Node Container
+      html += `
+        <div class="relative flex items-center group z-10 node-container">
+          <div class="max-w-xs transition-all duration-300 hover:scale-[1.02] ${nodeClasses} cursor-pointer min-w-[50px]">
+            <div class="whitespace-pre-wrap break-words node-text" data-path="${pathStr}">${escapeHTML(node.name)}</div>
+            
+            <!-- Hover Action Buttons -->
+            <div class="absolute -top-3 -right-4 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity bg-white shadow-md border border-slate-200 rounded-lg p-1 z-30">
+              <button class="add-btn p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-md text-slate-400 transition-colors" title="新增子節點" data-path="${pathStr}">
+                <i data-lucide="plus" class="w-3.5 h-3.5 pointer-events-none"></i>
+              </button>
+              ${!isRoot ? `
+              <button class="delete-btn p-1.5 hover:bg-red-50 hover:text-red-600 rounded-md text-slate-400 transition-colors" title="刪除節點" data-path="${pathStr}">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
+              </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Children Container
+      if (hasChildren) {
+        html += `<div class="relative flex flex-col pl-10 md:pl-12">`;
+        html += `<div class="absolute left-0 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
+
+        node.children.forEach((child, index) => {
+          const childPath = pathStr ? `${pathStr},${index}` : `${index}`;
+          const isChildFirst = index === 0;
+          const isChildLast = index === node.children.length - 1;
+
+          html += `<div class="relative py-2.5 flex items-center">`;
+          
+          // Vertical connector
+          html += `<div class="absolute left-5 md:left-6 w-[2px] bg-slate-300 transition-colors group-hover:bg-indigo-300" 
+                        style="top: ${isChildFirst ? '50%' : '0'}; bottom: ${isChildLast ? '50%' : '0'};"></div>`;
+          // Horizontal connector
+          html += `<div class="absolute left-5 md:left-6 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
+          
+          // Recursion
+          html += buildNodeHTML(child, childPath, level + 1, false);
+          
+          html += `</div>`;
+        });
+
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      return html;
+    };
+
+    const renderTree = () => {
+      mindmapRoot.innerHTML = buildNodeHTML(mindmapData, "", 0, true);
+      lucide.createIcons();
+    };
+
+    const updateTransformStyle = () => {
+      transformContainer.style.transform = `translate(calc(-50% + ${transform.x}px), calc(-50% + ${transform.y}px)) scale(${transform.scale})`;
+    };
+
+    const resetView = () => {
+      transform = { x: 0, y: 0, scale: 1 };
+      updateTransformStyle();
+    };
+
+    const handleZoom = (delta) => {
+      transform.scale = Math.min(Math.max(0.2, transform.scale + delta), 3);
+      updateTransformStyle();
+    };
+
+    const showError = (msg) => {
+      if (msg) {
+        errorText.textContent = msg;
+        errorContainer.classList.remove('hidden');
+        errorContainer.classList.add('flex');
+      } else {
+        errorContainer.classList.add('hidden');
+        errorContainer.classList.remove('flex');
+      }
+    };
+
+    const setLoading = (loading) => {
+      isLoading = loading;
+      topicInput.disabled = loading;
+      generateBtn.disabled = loading;
+      
+      if (loading) {
+        btnIconNormal.classList.add('hidden');
+        btnIconLoading.classList.remove('hidden');
+        btnText.textContent = '思考中...';
+        mindmapRoot.classList.add('opacity-30', 'blur-sm', 'pointer-events-none');
+      } else {
+        btnIconNormal.classList.remove('hidden');
+        btnIconLoading.classList.add('hidden');
+        btnText.textContent = '生成';
+        mindmapRoot.classList.remove('opacity-30', 'blur-sm', 'pointer-events-none');
+      }
+    };
+
+    // --- Event Listeners ---
+
+    // 1. Canvas Pan & Zoom
+    canvas.addEventListener('mousedown', (e) => {
+      // 若點擊的是節點本身，不觸發拖曳
+      if (e.target.closest('.node-container')) return;
+      isDragging = true;
+      dragStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      transform.x = e.clientX - dragStart.x;
+      transform.y = e.clientY - dragStart.y;
+      updateTransformStyle();
+    });
+
+    window.addEventListener('mouseup', () => isDragging = false);
+    
+    canvas.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const zoomFactor = -e.deltaY * 0.005;
+        handleZoom(zoomFactor);
+      } else {
+        transform.x -= e.deltaX;
+        transform.y -= e.deltaY;
+        updateTransformStyle();
+      }
+    });
+
+    // Toolbar Buttons
+    document.getElementById('zoom-in-btn').addEventListener('click', () => handleZoom(0.2));
+    document.getElementById('zoom-out-btn').addEventListener('click', () => handleZoom(-0.2));
+    document.getElementById('reset-view-btn').addEventListener('click', resetView);
+
+    // 2. Node Interactions (Event Delegation)
+    mindmapRoot.addEventListener('click', (e) => {
+      // 處理新增
+      const addBtn = e.target.closest('.add-btn');
+      if (addBtn) {
+        e.stopPropagation();
+        addNode(addBtn.dataset.path);
+        return;
+      }
+
+      // 處理刪除
+      const deleteBtn = e.target.closest('.delete-btn');
+      if (deleteBtn) {
+        e.stopPropagation();
+        deleteNode(deleteBtn.dataset.path);
+        return;
+      }
+
+      // 處理編輯
+      const textNode = e.target.closest('.node-text');
+      if (textNode) {
+        e.stopPropagation();
+        const currentText = textNode.textContent;
+        const pathStr = textNode.dataset.path;
+        
+        // 替換為 textarea
+        const textarea = document.createElement('textarea');
+        textarea.value = currentText;
+        textarea.className = "bg-transparent outline-none w-full min-w-[100px] resize-none overflow-hidden text-inherit font-inherit leading-tight p-0 m-0 border-none focus:ring-0 block";
+        textarea.rows = 1;
+        
+        textNode.replaceWith(textarea);
+        
+        // 自動調整高度
+        textarea.style.height = textarea.scrollHeight + 'px';
+        textarea.addEventListener('input', () => {
+          textarea.style.height = 'auto';
+          textarea.style.height = textarea.scrollHeight + 'px';
+        });
+
+        // 游標放最後面
+        textarea.focus();
+        textarea.selectionStart = textarea.value.length;
+        textarea.selectionEnd = textarea.value.length;
+
+        const saveEdit = () => {
+          const val = textarea.value.trim();
+          if (val !== currentText) {
+            updateNode(pathStr, val || '未命名');
+          } else {
+            renderTree(); // 恢復原狀
+          }
+        };
+
+        textarea.addEventListener('blur', saveEdit);
+        textarea.addEventListener('keydown', (evt) => {
+          if (evt.key === 'Enter' && !evt.shiftKey) {
+            evt.preventDefault();
+            textarea.blur(); // 觸發 blur 執行 save
+          } else if (evt.key === 'Escape') {
+            renderTree(); // 放棄編輯
+          }
+        });
+      }
+    });
+
+    // 3. API Generation
+    generateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const topic = topicInput.value.trim();
+      if (!topic) return;
+
+      const cleanApiKey = apiKeyInput.value.trim();
+      if (!cleanApiKey) {
+        showError("請先在上方輸入您的 Qwen API Key");
+        return;
+      }
+
+      if (!cleanApiKey.startsWith("sk-")) {
+        showError("提示：DashScope API Key 通常以 'sk-' 開頭，請確認您輸入的不是 AccessKey ID。");
+        return;
+      }
+
+      setLoading(true);
+      showError(null);
+
+      const prompt = `
+        你是一個專業的知識圖譜與心智圖專家。
+        請根據使用者輸入的主題：「${topic}」，生成一個結構清晰、內容豐富且具體的心智圖資料。
+        
+        請嚴格按照以下 JSON 結構輸出，不要包含任何額外的 Markdown 標記（如 \`\`\`json 等），直接輸出乾淨的 JSON 字串：
+        {
+          "name": "根節點 (主題名稱)",
+          "children": [
+            {
+              "name": "主要子主題 1",
+              "children": [
+                {
+                  "name": "細節 1",
+                  "children": [
+                    { "name": "更深入的細節" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        
+        要求：
+        1. 最大深度為 4 層（根節點算第 1 層）。
+        2. 內容必須使用繁體中文。
+        3. 每個節點的文字應簡明扼要，方便作為心智圖閱讀。
+        4. 涵蓋該主題的關鍵面向（例如：定義、歷史、核心概念、應用、優缺點等，視主題而定）。
+      `;
+
+      try {
+        const url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
+        const payload = {
+          model: "qwen-plus",
+          messages: [
+            { role: "system", content: "你是一個專業的知識圖譜與心智圖專家。請嚴格輸出 JSON 格式。" },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.3
+        };
+
+        const result = await fetchWithRetry(url, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cleanApiKey}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        let textResponse = result.choices?.[0]?.message?.content;
+        if (!textResponse) throw new Error("無效的 API 回應 (查無文本)");
+
+        // 清理可能包含的 Markdown 標記
+        textResponse = textResponse.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+
+        const parsedData = JSON.parse(textResponse);
+        
+        if (!parsedData.name || !parsedData.children) {
+          throw new Error("API 返回的 JSON 格式不符合預期");
+        }
+
+        mindmapData = parsedData;
+        resetView();
+        renderTree();
+      } catch (err) {
+        console.error(err);
+        showError(err.message || "生成心智圖時發生錯誤，請檢查 API Key 或稍後再試。");
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // --- Initialization ---
+    // 呼叫 Lucide 解析初始載入的 Header UI Icon
+    lucide.createIcons();
+    // 渲染初始樹狀圖
+    renderTree();
+    updateTransformStyle();
+
+  </script>
+</body>
+</html>
