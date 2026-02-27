@@ -8,6 +8,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- 引入 Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- 引入 html2canvas 供下載圖片使用 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     /* 隱藏捲軸但保留功能 */
     ::-webkit-scrollbar {
@@ -17,6 +19,10 @@
     /* 確保字體繼承 */
     .font-inherit {
       font-family: inherit;
+    }
+    /* 匯出圖片時隱藏節點上的操作按鈕 */
+    .exporting .group-hover\:opacity-100 {
+      opacity: 0 !important;
     }
   </style>
 </head>
@@ -80,6 +86,10 @@
 
     <!-- Toolbar -->
     <div class="absolute bottom-6 right-6 z-20 flex gap-2 bg-white/90 backdrop-blur shadow-lg p-2 rounded-xl border border-slate-200">
+      <button id="download-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="下載為圖片">
+        <i data-lucide="download" class="w-5 h-5"></i>
+      </button>
+      <div class="w-px h-auto bg-slate-200 my-1"></div>
       <button id="zoom-out-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="縮小">
         <i data-lucide="zoom-out" class="w-5 h-5"></i>
       </button>
@@ -417,6 +427,46 @@
     document.getElementById('zoom-in-btn').addEventListener('click', () => handleZoom(0.2));
     document.getElementById('zoom-out-btn').addEventListener('click', () => handleZoom(-0.2));
     document.getElementById('reset-view-btn').addEventListener('click', resetView);
+
+    // 下載按鈕邏輯
+    document.getElementById('download-btn').addEventListener('click', async () => {
+      const downloadBtn = document.getElementById('download-btn');
+      const originalHTML = downloadBtn.innerHTML;
+      
+      try {
+        // 顯示載入中動畫
+        downloadBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+        lucide.createIcons();
+        
+        // 加上 exporting 樣式：隱藏懸浮按鈕、增加背景色與內距，確保截圖美觀
+        mindmapRoot.classList.add('exporting', 'p-12', 'bg-slate-50', 'rounded-2xl');
+        
+        // 短暫等待 DOM 重新渲染
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        // 擷取目標為 mindmapRoot，不包含畫布的縮放(Transform)偏移，確保圖形完整
+        const canvasObj = await html2canvas(mindmapRoot, {
+          backgroundColor: '#f8fafc', // 對應 tailwind slate-50
+          scale: 2, // 提高圖片解析度 (Retina 畫質)
+          logging: false,
+          useCORS: true
+        });
+
+        // 建立下載連結並觸發
+        const link = document.createElement('a');
+        link.download = `${mindmapData.name || 'AI_心智圖'}.png`;
+        link.href = canvasObj.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        console.error('下載圖片失敗:', err);
+        showError('下載圖片失敗，請稍後再試。');
+      } finally {
+        // 復原 DOM 樣式與按鈕狀態
+        mindmapRoot.classList.remove('exporting', 'p-12', 'bg-slate-50', 'rounded-2xl');
+        downloadBtn.innerHTML = originalHTML;
+        lucide.createIcons();
+      }
+    });
 
     // 2. Node Interactions (Event Delegation)
     mindmapRoot.addEventListener('click', (e) => {
