@@ -167,7 +167,7 @@
         errApiFail: '生成心智圖時發生錯誤，請檢查 API Key 或稍後再試。',
         errDownload: '下載圖片失敗，請稍後再試。',
         statsTokens: 'Token 消耗: {total} (輸入: {in} / 輸出: {out})',
-        statsCost: '預估成本: ~${cost} USD',
+        statsCost: '預估成本: ~HK${cost}',
         promptSystem: '你是一個專業的知識圖譜與心智圖專家。請嚴格輸出 JSON 格式。',
         promptTpl: (topic) => `
           你是一個專業的知識圖譜與心智圖專家。
@@ -225,7 +225,7 @@
         errApiFail: 'Error generating mindmap. Check API Key or try again.',
         errDownload: 'Failed to download image. Try again later.',
         statsTokens: 'Tokens: {total} (In: {in} / Out: {out})',
-        statsCost: 'Est. Cost: ~${cost} USD',
+        statsCost: 'Est. Cost: ~HK${cost}',
         promptSystem: 'You are a professional knowledge graph and mind map expert. Output strictly in JSON format.',
         promptTpl: (topic) => `
           You are a professional knowledge graph and mind map expert.
@@ -772,19 +772,20 @@
         let usage = result.usage;
         if (!textResponse) throw new Error(t.errApiNoText);
 
-        // 紀錄 Token 與成本 (以 qwen-plus 國際版標準定價估算)
-        // 輸入約 $0.0004 / 1k tokens, 輸出約 $0.0012 / 1k tokens
+        // 紀錄 Token 與成本 (以 qwen-plus 國際版標準定價估算，並轉換為 HKD，匯率約 1 USD = 7.8 HKD)
+        // 輸入約 $0.0004 USD / 1k tokens, 輸出約 $0.0012 USD / 1k tokens
         if (usage) {
           const promptTokens = usage.prompt_tokens || 0;
           const completionTokens = usage.completion_tokens || 0;
           const totalTokens = usage.total_tokens || 0;
-          const cost = (promptTokens * 0.0004 / 1000) + (completionTokens * 0.0012 / 1000);
+          const costUSD = (promptTokens * 0.0004 / 1000) + (completionTokens * 0.0012 / 1000);
+          const costHKD = costUSD * 7.8;
           
           currentStats = {
             prompt_tokens: promptTokens,
             completion_tokens: completionTokens,
             total_tokens: totalTokens,
-            cost: cost
+            cost: costHKD
           };
           updateStatsUI();
         }
