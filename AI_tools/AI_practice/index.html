@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 作業部署系統</title>
+  
+  <!-- 載入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 載入 FontAwesome 圖示庫 (替代 lucide-react) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- 載入 React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- 載入 Babel (用於在瀏覽器內編譯 JSX) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- 載入 html2pdf.js 用於產生 PDF 報告 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  
+  <!-- 載入 JSZip 用於批量打包下載 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- 圖示元件封裝 ---
+    const Icon = ({ className = '', size = 16, faClass, onClick }) => (
+      <i className={`${faClass} ${className} flex items-center justify-center`} style={{ fontSize: `${size}px`, width: `${size}px`, height: `${size}px` }} onClick={onClick} />
+    );
+    const Plus = (props) => <Icon faClass="fa-solid fa-plus" {...props} />;
+    const Trash2 = (props) => <Icon faClass="fa-solid fa-trash-can" {...props} />;
+    const Settings = (props) => <Icon faClass="fa-solid fa-gear" {...props} />;
+    const Sparkles = (props) => <Icon faClass="fa-solid fa-wand-magic-sparkles" {...props} />;
+    const ImageIcon = (props) => <Icon faClass="fa-solid fa-image" {...props} />;
+    const FileText = (props) => <Icon faClass="fa-solid fa-file-lines" {...props} />;
+    const CheckCircle = (props) => <Icon faClass="fa-solid fa-circle-check" {...props} />;
+    const X = (props) => <Icon faClass="fa-solid fa-xmark" {...props} />;
+    const Edit3 = (props) => <Icon faClass="fa-solid fa-pen-to-square" {...props} />;
+    const Save = (props) => <Icon faClass="fa-solid fa-floppy-disk" {...props} />;
+    const UploadCloud = (props) => <Icon faClass="fa-solid fa-cloud-arrow-up" {...props} />;
+    const List = (props) => <Icon faClass="fa-solid fa-list-ul" {...props} />;
+    const AlignLeft = (props) => <Icon faClass="fa-solid fa-align-left" {...props} />;
+    const ArrowLeft = (props) => <Icon faClass="fa-solid fa-arrow-left" {...props} />;
+    const Globe = (props) => <Icon faClass="fa-solid fa-globe" {...props} />;
+    const BookOpen = (props) => <Icon faClass="fa-solid fa-book-open" {...props} />;
+    const Clock = (props) => <Icon faClass="fa-regular fa-clock" {...props} />;
+    const Bot = (props) => <Icon faClass="fa-solid fa-robot" {...props} />;
+    const User = (props) => <Icon faClass="fa-regular fa-user" {...props} />;
+    const GraduationCap = (props) => <Icon faClass="fa-solid fa-graduation-cap" {...props} />;
+    const BarChart2 = (props) => <Icon faClass="fa-solid fa-chart-column" {...props} />;
+    const Download = (props) => <Icon faClass="fa-solid fa-download" {...props} />;
+    const AlertTriangle = (props) => <Icon faClass="fa-solid fa-triangle-exclamation" {...props} />;
+    const Eye = (props) => <Icon faClass="fa-regular fa-eye" {...props} />;
+    const Calendar = (props) => <Icon faClass="fa-regular fa-calendar" {...props} />;
+    const FilePdf = (props) => <Icon faClass="fa-solid fa-file-pdf" {...props} />;
+    const Archive = (props) => <Icon faClass="fa-solid fa-file-zipper" {...props} />;
+
+    // --- 多國語言字典 (i18n) ---
+    const dict = {
+      zh: {
+        appTitle: 'AI 作業部署系統',
+        classroom: '課室',
+        settings: '設定 (API Key)',
+        publish: '發布作業',
+        addPractice: '新增作業 (Practice)',
+        practiceTitle: '作業標題',
+        untitledPractice: '未命名作業',
+        totalQuestions: '總題數',
+        backToClassroom: '返回課室',
+        addQuestion: '新增題目',
+        aiGenerate: 'AI 智能出題',
+        manualAdd: '手動新增',
+        mc: '選擇題 (MC)',
+        shortAnswer: '短答題',
+        longAnswer: '長答/申論題',
+        upload: '圖片/PDF上傳題',
+        uploadDesc: '適合手寫算式、畫圖或上傳文件',
+        summary: '作業摘要',
+        otherTypes: '其他題型',
+        emptyPractice: '目前沒有任何題目',
+        emptyPracticeDesc: '請從左側點擊新增或使用 AI 生成',
+        questionContent: '題目內容',
+        optionsSetup: '選項設定',
+        setCorrectAnswer: '請勾選右側圓圈以設定正確答案',
+        referenceAnswer: '參考解答 (可選)',
+        studentUploadDesc: '學生在作答此題時，介面將會提供「上傳附件」按鈕，讓他們可以上傳圖片或 PDF 檔案作為解答。',
+        finishEdit: '完成編輯',
+        notEntered: '（未輸入題目內容）',
+        studentAnswerArea: '學生作答區',
+        studentAnswerShort: '單行/短文',
+        studentAnswerLong: '多行長文',
+        studentUploadArea: '學生上傳附件區',
+        supportFormat: '支援 JPG, PNG, PDF 格式',
+        systemSettings: '系統設定',
+        apiKeyDesc: '此工具使用阿里雲 DashScope 國際版 API。請輸入您的 API Key 以啟用 AI 出題功能。',
+        cancel: '取消',
+        saveSettings: '儲存設定',
+        aiTopic: '題目主題 / 知識點',
+        aiTopicPlaceholder: '例如：國中生物 光合作用、基礎微積分...',
+        questionType: '題型',
+        difficulty: '難易度',
+        easy: '簡單 (基礎概念)',
+        medium: '中等 (應用理解)',
+        hard: '困難 (進階分析)',
+        startGenerate: '開始生成',
+        generating: 'AI 正在努力生成題目中，請稍候...',
+        deleteConfirm: '確定要刪除此作業嗎？',
+        delete: '刪除',
+        edit: '編輯',
+        save: '儲存',
+        successMsg: '操作成功！',
+        errorMsg: '發生錯誤',
+        noPractices: '課室目前沒有作業',
+        createFirst: '點擊下方按鈕建立第一份作業！',
+        createdOn: '建立於',
+        questionsCount: '題',
+        invalidApiKey: 'API Key 無效或錯誤！請重新檢查您的設定。',
+        grade: '年級',
+        gradePlaceholder: '例如：小五、國二、高一',
+        subject: '科目',
+        subjectPlaceholder: '例如：數學、歷史',
+        quantity: '題目數量',
+        specialReq: '特別要求',
+        specialReqPlaceholder: '例如：需有陷阱答案、結合生活情境...',
+        enableAiGrading: '啟用 AI 自動批改',
+        aiGradingEnabled: '已啟用 AI 批改',
+        teacherReference: '教師參考附件 (圖片/PDF)',
+        uploadReferenceBtn: '上傳附件',
+        referenceUploaded: '已上傳附件',
+        fileTooLarge: '檔案過大！請上傳小於 2MB 的檔案以利系統儲存。',
+        viewAttachment: '查看附件',
+        tokensUsed: '消耗 Token',
+        estCost: '預估成本',
+        teacherRole: '教師模式',
+        studentRole: '學生模式',
+        totalScore: '總分',
+        markingScheme: '評分標準 (Marking Scheme)',
+        statusPublished: '已發布',
+        statusDraft: '草稿',
+        submitAssignment: '提交作業',
+        assignmentSubmitted: '作業已提交！',
+        studentNoPractices: '目前沒有需要完成的作業。',
+        viewReport: '查看報告',
+        report: '作業報告',
+        downloadCSV: '下載 CSV',
+        downloadPDF: '下載 PDF',
+        batchDownloadPDFs: '批量下載 (ZIP)',
+        mergeDownloadPDF: '合併單一 PDF',
+        generatingPDFs: '正在產生 PDF，這可能需要幾秒鐘...',
+        students: { studentA: '學生 A', studentB: '學生 B', studentC: '學生 C' },
+        score: '分數',
+        status: '狀態',
+        completed: '已完成',
+        notStarted: '未作答',
+        viewDetails: '查看詳情',
+        mistakeBook: '錯題集',
+        mistakeDesc: '以下是學生答錯或未拿滿分的題目，請針對這些知識點加強指導。',
+        noMistakes: '太棒了！目前沒有錯題。',
+        gotWrong: '答錯的學生',
+        studentAnswers: '作答詳情',
+        close: '關閉',
+        correctAnswerIs: '正確答案：',
+        studentAnswerIs: '學生作答：',
+        dueDate: '截止日期',
+        dueDateHelp: '設定後，學生必須在期限內作答。成績將於截止後才公開。',
+        gradesAvailableAfter: '成績與報告將於截止日期後公佈',
+        waitingForGrades: '等待公佈',
+        overdue: '已逾期',
+        overdueCannotSubmit: '作業已逾期，無法作答',
+        viewResult: '查看結果',
+        enterPractice: '進入作答',
+        aiGradingInProgress: '正在由 AI 批改作業中，請稍候...',
+        aiFeedback: 'AI 評語：'
+      },
+      en: {
+        appTitle: 'AI Assignment System',
+        classroom: 'Classroom',
+        settings: 'Settings (API Key)',
+        publish: 'Publish',
+        addPractice: 'Add Practice',
+        practiceTitle: 'Practice Title',
+        untitledPractice: 'Untitled Practice',
+        totalQuestions: 'Total Qs',
+        backToClassroom: 'Back to Classroom',
+        addQuestion: 'Add Question',
+        aiGenerate: 'AI Generate',
+        manualAdd: 'Add Manually',
+        mc: 'Multiple Choice (MC)',
+        shortAnswer: 'Short Answer',
+        longAnswer: 'Essay / Long Answer',
+        upload: 'Image/PDF Upload',
+        uploadDesc: 'For handwriting, drawings, or documents',
+        summary: 'Summary',
+        otherTypes: 'Other Types',
+        emptyPractice: 'No questions yet',
+        emptyPracticeDesc: 'Click left to add or use AI',
+        questionContent: 'Question Content',
+        optionsSetup: 'Options Setup',
+        setCorrectAnswer: 'Check the right circle to set correct answer',
+        referenceAnswer: 'Reference Answer (Optional)',
+        studentUploadDesc: 'Students will see an "Upload File" button to upload their images or PDF files.',
+        finishEdit: 'Finish Editing',
+        notEntered: '(Not entered)',
+        studentAnswerArea: 'Student Answer Area',
+        studentAnswerShort: 'Single line/Short',
+        studentAnswerLong: 'Multi-line/Long text',
+        studentUploadArea: 'Student Upload Area',
+        supportFormat: 'Supports JPG, PNG, PDF',
+        systemSettings: 'System Settings',
+        apiKeyDesc: 'Enter your Aliyun DashScope Int. API Key to enable AI generation.',
+        cancel: 'Cancel',
+        saveSettings: 'Save Settings',
+        aiTopic: 'Topic / Knowledge Point',
+        aiTopicPlaceholder: 'e.g., Photosynthesis, Basic Calculus...',
+        questionType: 'Question Type',
+        difficulty: 'Difficulty',
+        easy: 'Easy (Basic Concepts)',
+        medium: 'Medium (Application)',
+        hard: 'Hard (Advanced Analysis)',
+        startGenerate: 'Start Generating',
+        generating: 'AI is generating questions, please wait...',
+        deleteConfirm: 'Are you sure you want to delete this practice?',
+        delete: 'Delete',
+        edit: 'Edit',
+        save: 'Save',
+        successMsg: 'Success!',
+        errorMsg: 'Error occurred',
+        noPractices: 'No practices in the classroom',
+        createFirst: 'Click below to create your first practice!',
+        createdOn: 'Created',
+        questionsCount: 'Qs',
+        invalidApiKey: 'Invalid API Key! Please double-check your settings.',
+        grade: 'Grade',
+        gradePlaceholder: 'e.g., Grade 5, Year 8',
+        subject: 'Subject',
+        subjectPlaceholder: 'e.g., Math, History',
+        quantity: 'Quantity',
+        specialReq: 'Special Requirements',
+        specialReqPlaceholder: 'e.g., Include tricky options, real-life context...',
+        enableAiGrading: 'Enable AI Grading',
+        aiGradingEnabled: 'AI Grading Enabled',
+        teacherReference: 'Teacher Reference (Img/PDF)',
+        uploadReferenceBtn: 'Upload File',
+        referenceUploaded: 'File Uploaded',
+        fileTooLarge: 'File too large! Please upload a file smaller than 2MB.',
+        viewAttachment: 'View File',
+        tokensUsed: 'Tokens Used',
+        estCost: 'Est. Cost',
+        teacherRole: 'Teacher Mode',
+        studentRole: 'Student Mode',
+        totalScore: 'Total Score',
+        markingScheme: 'Marking Scheme',
+        statusPublished: 'Published',
+        statusDraft: 'Draft',
+        submitAssignment: 'Submit Assignment',
+        assignmentSubmitted: 'Assignment Submitted!',
+        studentNoPractices: 'No assigned practices at the moment.',
+        viewReport: 'View Report',
+        report: 'Assignment Report',
+        downloadCSV: 'Download CSV',
+        downloadPDF: 'Download PDF',
+        batchDownloadPDFs: 'Batch PDFs (ZIP)',
+        mergeDownloadPDF: 'Merge to 1 PDF',
+        generatingPDFs: 'Generating PDFs, please wait...',
+        students: { studentA: 'Student A', studentB: 'Student B', studentC: 'Student C' },
+        score: 'Score',
+        status: 'Status',
+        completed: 'Completed',
+        notStarted: 'Not Started',
+        viewDetails: 'View Details',
+        mistakeBook: 'Mistake Collection',
+        mistakeDesc: 'Questions where students made mistakes or lost points.',
+        noMistakes: 'Great! No mistakes recorded.',
+        gotWrong: 'Students who got this wrong',
+        studentAnswers: 'Answer Details',
+        close: 'Close',
+        correctAnswerIs: 'Correct Ans: ',
+        studentAnswerIs: 'Student Ans: ',
+        dueDate: 'Due Date',
+        dueDateHelp: 'Students must submit before this time. Grades reveal after due date.',
+        gradesAvailableAfter: 'Grades will be available after the due date.',
+        waitingForGrades: 'Pending Grades',
+        overdue: 'Overdue',
+        overdueCannotSubmit: 'Assignment is overdue and cannot be submitted.',
+        viewResult: 'View Result',
+        enterPractice: 'Enter Practice',
+        aiGradingInProgress: 'AI is grading the assignment, please wait...',
+        aiFeedback: 'AI Feedback: '
+      }
+    };
+
+    const STUDENT_IDS = ['studentA', 'studentB', 'studentC'];
+
+    // --- 工具函數：呼叫 Qwen AI (生成題目) ---
+    const generateWithQwen = async (apiKey, params, lang) => {
+      const endpoint = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
+      const cleanApiKey = apiKey.replace(/[^\x20-\x7E]/g, '').trim();
+      const { grade, subject, topic, type, difficulty, quantity, specialReq } = params;
+      
+      let systemMessage = lang === 'en'
+        ? "You are a professional educator. You must answer strictly in English. Output ONLY valid JSON format data without any markdown markers. For math equations, use plain text characters (e.g., '1/2' instead of '\\frac{1}{2}') and DO NOT use LaTeX syntax."
+        : "你是一個專業的教育工作者。請一律使用「繁體中文」回答。你必須嚴格輸出 JSON 格式的資料，不要包含任何 markdown 標記或其他文字。如遇數學公式，請使用一般純文字表示（例如 a/b 或 1/2），絕對不要使用 LaTeX 語法（如 \\frac）。";
+      
+      let reqText = specialReq ? (lang === 'en' ? `Special requirements: ${specialReq}.` : `特別要求：${specialReq}。`) : '';
+      let userPrompt = lang === 'en'
+        ? `Target Audience: ${grade}\nSubject: ${subject}\nTopic: "${topic}"\nDifficulty: "${difficulty}"\nQuantity: ${quantity} questions\n${reqText}\nPlease generate the questions.`
+        : `對象年級：${grade}\n科目：${subject}\n主題：「${topic}」\n難度：「${difficulty}」\n數量：${quantity}題\n${reqText}\n請生成題目。`;
+
+      if (type === 'mc') {
+        systemMessage += lang === 'en' ? `
+JSON format must be strictly like this:
+{
+  "questions": [
+    {
+      "question": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "Full text of correct option (must exactly match one of the options)"
+    }
+  ]
+}` : `
+請生成單選題。JSON 格式必須嚴格如下：
+{
+  "questions": [
+    {
+      "question": "題目內容",
+      "options": ["選項A", "選項B", "選項C", "選項D"],
+      "answer": "正確選項的完整文字內容（必須與 options 中的其中一個完全相同）"
+    }
+  ]
+}`;
+      } else {
+        let qType = lang === 'en' ? (type === 'short_answer' ? 'short answer' : 'essay') : (type === 'short_answer' ? '簡答題' : '申論/長答題');
+        systemMessage += lang === 'en' ? `
+Generate ${qType} questions. JSON format must be strictly like this:
+{
+  "questions": [
+    {
+      "question": "Question text",
+      "answer": "Reference answer or grading rubric"
+    }
+  ]
+}` : `
+請生成${qType}。JSON 格式必須嚴格如下：
+{
+  "questions": [
+    {
+      "question": "題目內容",
+      "answer": "參考解答或評分要點"
+    }
+  ]
+}`;
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${cleanApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: "qwen-plus",
+          messages: [{ role: "system", content: systemMessage }, { role: "user", content: userPrompt }],
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMsg = errorData.error?.message || '';
+        if (response.status === 401 || errorMsg.includes('Incorrect API key') || errorData.error?.code === 'InvalidApiKey') {
+          throw new Error('INVALID_API_KEY');
+        }
+        throw new Error(errorMsg || 'API Request Failed');
+      }
+
+      const data = await response.json();
+      let content = data.choices[0].message.content.trim();
+      const jsonMatch = content.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+      if (jsonMatch) content = jsonMatch[0];
+
+      return { questions: Array.isArray(JSON.parse(content)) ? JSON.parse(content) : (JSON.parse(content).questions || [JSON.parse(content)]), usage: data.usage };
+    };
+
+    // --- 工具函數：呼叫 Qwen AI (批改學生短答/長答題) ---
+    const gradeAnswersWithQwen = async (apiKey, questionsToGrade, lang) => {
+      const endpoint = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
+      const cleanApiKey = apiKey.replace(/[^\x20-\x7E]/g, '').trim();
+
+      const systemMessage = lang === 'en' 
+        ? "You are an AI teaching assistant. Evaluate the student answers based on the question and marking scheme. Be fair and constructive. Output ONLY strictly valid JSON format."
+        : "你是一位專業且嚴格的 AI 助教。請根據題目、滿分與評分標準，客觀批改學生的文字作答，給予精確得分與簡短具體的評語。必須嚴格輸出 JSON 格式資料，不要包含任何 markdown 標籤。";
+
+      const promptData = questionsToGrade.map(q => ({
+        id: q.id,
+        question: q.question,
+        maxScore: q.max,
+        markingScheme: q.markingScheme,
+        studentAnswer: q.studentAnswer
+      }));
+
+      const userPrompt = lang === 'en'
+        ? `Grade these answers:\n${JSON.stringify(promptData)}\nOutput JSON format strictly like this:\n{\n  "results": [\n    { "id": "question_id", "score": number, "feedback": "short explanation" }\n  ]\n}`
+        : `請批改以下作答：\n${JSON.stringify(promptData)}\n請嚴格輸出以下 JSON 格式：\n{\n  "results": [\n    { "id": "題目ID", "score": 數字得分, "feedback": "簡短評語" }\n  ]\n}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${cleanApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: "qwen-plus",
+          messages: [{ role: "system", content: systemMessage }, { role: "user", content: userPrompt }],
+          temperature: 0.2 // 使用較低的 temperature 確保評分穩定性
+        })
+      });
+
+      if (!response.ok) throw new Error('AI Grading Failed');
+      const data = await response.json();
+      let content = data.choices[0].message.content.trim();
+      const jsonMatch = content.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+      if (jsonMatch) content = jsonMatch[0];
+
+      return { grading: JSON.parse(content), usage: data.usage };
+    };
+
+    // --- 主應用程式 ---
+    function App() {
+      const [lang, setLang] = useState('zh');
+      const t = dict[lang];
+
+      const [view, setView] = useState('classroom'); 
+      const [role, setRole] = useState('teacher'); 
+      const [currentStudentId, setCurrentStudentId] = useState('studentA'); 
+      
+      const [practiceSets, setPracticeSets] = useState([]);
+      const [currentSetId, setCurrentSetId] = useState(null);
+      
+      const [studentAnswers, setStudentAnswers] = useState({});
+      const [submissions, setSubmissions] = useState({});
+      const [reportDetailModal, setReportDetailModal] = useState({ show: false, studentId: null });
+
+      const [apiKey, setApiKey] = useState('');
+      const [sessionStats, setSessionStats] = useState({ tokens: 0, costHKD: 0 });
+      
+      const [showSettings, setShowSettings] = useState(false);
+      const [showAiModal, setShowAiModal] = useState(false);
+      const [toast, setToast] = useState(null);
+      const [isGenerating, setIsGenerating] = useState(false);
+      const [isSubmitting, setIsSubmitting] = useState(false); // 控制 AI 批改與 PDF 產生的 Loading 狀態
+
+      const [aiGrade, setAiGrade] = useState('');
+      const [aiSubject, setAiSubject] = useState('');
+      const [aiTopic, setAiTopic] = useState('');
+      const [aiType, setAiType] = useState('mc');
+      const [aiQuantity, setAiQuantity] = useState(1);
+      const [aiDifficulty, setAiDifficulty] = useState('medium');
+      const [aiSpecialReq, setAiSpecialReq] = useState('');
+
+      useEffect(() => {
+        const savedKey = localStorage.getItem('qwen_api_key');
+        if (savedKey) setApiKey(savedKey);
+        const savedPractices = localStorage.getItem('ai_practices');
+        if (savedPractices) setPracticeSets(JSON.parse(savedPractices));
+        const savedStats = localStorage.getItem('ai_stats');
+        if (savedStats) setSessionStats(JSON.parse(savedStats));
+        const savedSubmissions = localStorage.getItem('ai_submissions');
+        if (savedSubmissions) setSubmissions(JSON.parse(savedSubmissions));
+      }, []);
+
+      useEffect(() => { localStorage.setItem('ai_practices', JSON.stringify(practiceSets)); }, [practiceSets]);
+      useEffect(() => { localStorage.setItem('ai_submissions', JSON.stringify(submissions)); }, [submissions]);
+
+      const saveApiKey = (key) => {
+        const cleanKey = key.replace(/[^\x20-\x7E]/g, '').trim();
+        setApiKey(cleanKey);
+        localStorage.setItem('qwen_api_key', cleanKey);
+        showNotification(t.successMsg, 'success');
+        setShowSettings(false);
+      };
+
+      const showNotification = (msg, type = 'info') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3000);
+      };
+
+      const createNewPractice = () => {
+        const newPractice = {
+          id: Date.now().toString(),
+          title: t.untitledPractice,
+          date: new Date().toLocaleDateString(),
+          dueDate: '', 
+          isPublished: false,
+          questions: []
+        };
+        setPracticeSets([newPractice, ...practiceSets]);
+        setCurrentSetId(newPractice.id);
+        setView('editor');
+      };
+
+      const deletePracticeSet = (e, id) => {
+        e.stopPropagation();
+        if (window.confirm(t.deleteConfirm)) {
+          setPracticeSets(practiceSets.filter(p => p.id !== id));
+          showNotification(t.delete, 'info');
+        }
+      };
+
+      const openPractice = (id) => {
+        setCurrentSetId(id);
+        if (role === 'teacher') {
+          setView('editor');
+        } else {
+          const set = practiceSets.find(p => p.id === id);
+          const isPastDue = set.dueDate && new Date() > new Date(set.dueDate);
+          const canSeeGrades = !set.dueDate || isPastDue;
+          const sub = submissions[id]?.[currentStudentId];
+
+          if (sub) {
+            if (!canSeeGrades) {
+              showNotification(t.gradesAvailableAfter, 'info');
+              setCurrentSetId(null);
+              return;
+            }
+            const previousAnswers = {};
+            Object.keys(sub.details).forEach(qId => {
+              previousAnswers[qId] = sub.details[qId].answer;
+            });
+            setStudentAnswers(previousAnswers);
+            setView('student_practice');
+          } else {
+            if (isPastDue) {
+              showNotification(t.overdueCannotSubmit, 'error');
+              setCurrentSetId(null);
+              return;
+            }
+            setStudentAnswers({});
+            setView('student_practice');
+          }
+        }
+      };
+
+      const openReport = (e, id) => {
+        e.stopPropagation();
+        setCurrentSetId(id);
+        setView('report');
+      };
+
+      const toggleLanguage = () => setLang(lang === 'zh' ? 'en' : 'zh');
+      const toggleRole = () => {
+        setRole(role === 'teacher' ? 'student' : 'teacher');
+        setView('classroom');
+      };
+
+      const publishPractice = () => {
+        updateCurrentPractice({ isPublished: true });
+        showNotification(t.successMsg, 'success');
+        setView('classroom');
+      };
+
+      // 提交作業 (包含呼叫 AI 進行文字題批改)
+      const submitAssignment = async () => {
+        const currentPractice = practiceSets.find(p => p.id === currentSetId);
+        setIsSubmitting(true);
+        let earned = 0;
+        let total = 0;
+        const details = {};
+        const questionsToAIGrade = [];
+
+        currentPractice.questions.forEach(q => {
+          const max = q.totalScore || 10;
+          total += max;
+          const ans = studentAnswers[q.id];
+
+          if (q.type === 'mc') {
+            const qScore = (ans === q.answer) ? max : 0;
+            earned += qScore;
+            details[q.id] = { answer: ans, score: qScore, max };
+          } else if (q.aiGrading) {
+             if (q.type === 'upload' && ans?.data) {
+               earned += max;
+               details[q.id] = { answer: ans, score: max, max, feedback: '附件已上傳 (AI 暫不支援讀圖批改，預設給予滿分)' };
+             } else if (typeof ans === 'string' && ans.trim().length > 0) {
+               questionsToAIGrade.push({
+                 id: q.id,
+                 question: q.question,
+                 max: max,
+                 markingScheme: q.markingScheme || q.answer,
+                 studentAnswer: ans
+               });
+             } else {
+               details[q.id] = { answer: ans, score: 0, max, feedback: '未作答' };
+             }
+          } else {
+             const qScore = ans ? max : 0; 
+             earned += qScore;
+             details[q.id] = { answer: ans, score: qScore, max };
+          }
+        });
+
+        if (questionsToAIGrade.length > 0) {
+          try {
+            if (!apiKey) throw new Error("Missing API Key for AI Grading");
+            const result = await gradeAnswersWithQwen(apiKey, questionsToAIGrade, lang);
+            
+            result.grading.results.forEach(res => {
+              const qId = res.id;
+              const qObj = questionsToAIGrade.find(q => q.id === qId);
+              const safeScore = Math.min(Math.max(0, res.score), qObj.max);
+              earned += safeScore;
+              details[qId] = {
+                answer: qObj.studentAnswer,
+                score: safeScore,
+                max: qObj.max,
+                feedback: res.feedback
+              };
+            });
+
+            if (result.usage) {
+              const costHKD = (result.usage.prompt_tokens * 0.004 + result.usage.completion_tokens * 0.012) / 1000 * 1.08;
+              setSessionStats(prev => {
+                const newStats = { tokens: prev.tokens + result.usage.total_tokens, costHKD: prev.costHKD + costHKD };
+                localStorage.setItem('ai_stats', JSON.stringify(newStats));
+                return newStats;
+              });
+            }
+          } catch (err) {
+            console.error("AI 批改失敗:", err);
+            showNotification(lang==='en'?'AI grading failed. Applied default scores.':'AI 批改失敗，已給予預設分數', 'error');
+            questionsToAIGrade.forEach(q => {
+              const fallbackScore = Math.floor(q.max * 0.8);
+              earned += fallbackScore;
+              details[q.id] = { answer: q.studentAnswer, score: fallbackScore, max: q.max, feedback: 'AI 批改發生錯誤，給予基礎分' };
+            });
+          }
+        }
+
+        const newSubmissions = { ...submissions };
+        if (!newSubmissions[currentSetId]) newSubmissions[currentSetId] = {};
+        
+        newSubmissions[currentSetId][currentStudentId] = { earned, total, details };
+        setSubmissions(newSubmissions);
+
+        setIsSubmitting(false);
+        showNotification(t.assignmentSubmitted, 'success');
+        setView('classroom');
+      };
+
+      const currentPractice = practiceSets.find(p => p.id === currentSetId);
+      const updateCurrentPractice = (updates) => {
+        setPracticeSets(sets => sets.map(s => s.id === currentSetId ? { ...s, ...updates } : s));
+      };
+
+      const addManualQuestion = (type) => {
+        const newQ = {
+          id: Date.now().toString(),
+          type: type,
+          question: '',
+          options: type === 'mc' ? ['', '', '', ''] : [],
+          answer: '',
+          referenceFile: null,
+          aiGrading: false,
+          totalScore: 10,
+          markingScheme: '',
+          isEditing: true
+        };
+        updateCurrentPractice({ questions: [...(currentPractice?.questions || []), newQ] });
+      };
+
+      const handleAiGenerate = async () => {
+        if (!apiKey) {
+          showNotification(t.apiKeyDesc, 'error');
+          setShowSettings(true);
+          setShowAiModal(false);
+          return;
+        }
+        if (!aiGrade.trim() || !aiSubject.trim() || !aiTopic.trim()) return;
+
+        setIsGenerating(true);
+        try {
+          const difficultyStr = lang === 'en' ? aiDifficulty : (aiDifficulty === 'easy' ? '簡單' : aiDifficulty === 'medium' ? '中等' : '困難');
+          const result = await generateWithQwen(apiKey, { grade: aiGrade, subject: aiSubject, topic: aiTopic, type: aiType, difficulty: difficultyStr, quantity: aiQuantity, specialReq: aiSpecialReq }, lang);
+          
+          const newQs = result.questions.map(q => ({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            type: aiType,
+            question: q.question || '',
+            options: q.options || [],
+            answer: q.answer || '',
+            referenceFile: null,
+            aiGrading: false,
+            totalScore: 10,
+            markingScheme: '',
+            isEditing: false
+          }));
+          
+          updateCurrentPractice({ questions: [...(currentPractice?.questions || []), ...newQs] });
+          
+          if (result.usage) {
+            const costHKD = (result.usage.prompt_tokens * 0.004 + result.usage.completion_tokens * 0.012) / 1000 * 1.08;
+            setSessionStats(prev => {
+              const newStats = { tokens: prev.tokens + result.usage.total_tokens, costHKD: prev.costHKD + costHKD };
+              localStorage.setItem('ai_stats', JSON.stringify(newStats));
+              return newStats;
+            });
+          }
+          showNotification(t.successMsg, 'success');
+          setShowAiModal(false);
+          setAiTopic('');
+          setAiSpecialReq('');
+        } catch (error) {
+          if (error.message === 'INVALID_API_KEY') {
+            showNotification(t.invalidApiKey, 'error');
+            setShowSettings(true);
+          } else {
+            showNotification(`${t.errorMsg}: ${error.message}`, 'error');
+          }
+        } finally {
+          setIsGenerating(false);
+        }
+      };
+
+      const updateQuestion = (qId, field, value) => {
+        updateCurrentPractice({ questions: currentPractice.questions.map(q => q.id === qId ? { ...q, [field]: value } : q) });
+      };
+
+      const updateOption = (qId, index, value) => {
+        updateCurrentPractice({ questions: currentPractice.questions.map(q => {
+          if (q.id === qId) {
+            const newOptions = [...q.options];
+            newOptions[index] = value;
+            return { ...q, options: newOptions };
+          }
+          return q;
+        })});
+      };
+
+      const deleteQuestion = (qId) => {
+        updateCurrentPractice({ questions: currentPractice.questions.filter(q => q.id !== qId) });
+      };
+
+      const toggleEditQuestion = (qId) => {
+        updateCurrentPractice({ questions: currentPractice.questions.map(q => q.id === qId ? { ...q, isEditing: !q.isEditing } : q) });
+      };
+
+      const handleFileUpload = (qId, file) => {
+        if (!file || file.size > 2 * 1024 * 1024) {
+          showNotification(t.fileTooLarge, 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => updateQuestion(qId, 'referenceFile', { name: file.name, type: file.type, data: e.target.result });
+        reader.readAsDataURL(file);
+      };
+
+      // --- 報表匯出功能 ---
+      const downloadCSV = () => {
+        if (!currentPractice) return;
+        const practiceSubmissions = submissions[currentPractice.id] || {};
+        let csvContent = `\uFEFFStudent Name,Status,Score,Max Score\n`;
+        STUDENT_IDS.forEach(sId => {
+          const sub = practiceSubmissions[sId];
+          if (sub) {
+            csvContent += `${t.students[sId]},Completed,${sub.earned},${sub.total}\n`;
+          } else {
+            csvContent += `${t.students[sId]},Not Started,0,0\n`;
+          }
+        });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.setAttribute("href", URL.createObjectURL(blob));
+        link.setAttribute("download", `${currentPractice.title}_Report.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      };
+
+      const generatePdfOpt = (filename) => ({
+        margin:       10,
+        filename:     filename,
+        pagebreak:    { mode: ['css', 'legacy'] },
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      });
+
+      // 下載單一學生的 PDF
+      const downloadStudentPDF = () => {
+        const element = document.getElementById('student-report-content');
+        element.style.backgroundColor = '#f8fafc';
+        html2pdf().set(generatePdfOpt(`${t.students[reportDetailModal.studentId]}_作答詳情.pdf`)).from(element).save().then(() => {
+           element.style.backgroundColor = '';
+        });
+      };
+
+      // 批量打包下載 ZIP
+      const handleBatchZip = async () => {
+        setIsSubmitting(true); // 借用 Loading 畫面
+        try {
+          const JSZip = window.JSZip;
+          if (!JSZip) throw new Error("JSZip is not loaded");
+          const zip = new JSZip();
+          const submittedIds = STUDENT_IDS.filter(sId => submissions[currentPractice.id]?.[sId]);
+
+          for (const sId of submittedIds) {
+            const element = document.getElementById(`pdf-student-${sId}`);
+            element.style.backgroundColor = '#f8fafc';
+            const pdfBlob = await html2pdf().set(generatePdfOpt(`${t.students[sId]}_作答詳情.pdf`)).from(element).output('blob');
+            zip.file(`${t.students[sId]}_作答詳情.pdf`, pdfBlob);
+            element.style.backgroundColor = '';
+          }
+
+          const zipBlob = await zip.generateAsync({ type: "blob" });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(zipBlob);
+          link.download = `${currentPractice.title}_批量報告.zip`;
+          document.body.appendChild(link); link.click(); document.body.removeChild(link);
+          showNotification(t.successMsg, 'success');
+        } catch (err) {
+          console.error(err);
+          showNotification(t.errorMsg, 'error');
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+
+      // 合併為單一 PDF
+      const handleMergePDF = async () => {
+        setIsSubmitting(true);
+        try {
+          const element = document.getElementById('merged-pdf-container');
+          element.style.backgroundColor = '#f8fafc';
+          await html2pdf().set(generatePdfOpt(`${currentPractice.title}_統合報告.pdf`)).from(element).save();
+          element.style.backgroundColor = '';
+          showNotification(t.successMsg, 'success');
+        } catch (err) {
+          console.error(err);
+          showNotification(t.errorMsg, 'error');
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+
+      // 共用的學生報告渲染區塊 (用於 Modal 和 隱藏的 PDF 產生區)
+      const renderStudentReportContentJSX = (sub, isPdfMode = false) => {
+        return (
+          <div className="space-y-6 text-slate-800">
+            <div className="bg-indigo-600 text-white p-4 rounded-lg flex justify-between items-center shadow-md">
+              <span className="font-bold">{t.totalScore}</span>
+              <span className="text-2xl font-bold">{sub.earned} / {sub.total}</span>
+            </div>
+            
+            {currentPractice.questions.map((q, idx) => {
+              const detail = sub.details[q.id] || { answer: '', score: 0, max: q.totalScore || 10 };
+              const isCorrect = detail.score === detail.max;
+              return (
+                <div key={q.id} className={`bg-white border border-slate-200 rounded-lg p-5 shadow-sm ${isPdfMode ? 'html2pdf__page-break-avoid' : ''}`}>
+                   <div className="flex justify-between items-start mb-3 gap-4">
+                     <div className="flex gap-2 items-start">
+                        <span className={`px-2 py-0.5 rounded text-sm font-bold ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>Q{idx + 1}</span>
+                        <p className="font-medium text-slate-800 mt-0.5">{q.question}</p>
+                     </div>
+                     <span className="font-bold text-slate-500 whitespace-nowrap">{detail.score} / {detail.max} 分</span>
+                   </div>
+                   
+                   <div className="ml-9 mt-3 p-3 bg-slate-50 border border-slate-100 rounded text-sm space-y-2">
+                     {q.type === 'mc' && <div className="text-emerald-600 font-bold">{t.correctAnswerIs} {q.answer}</div>}
+                     <div className="text-slate-700">
+                        <span className="font-bold">{t.studentAnswerIs} </span>
+                        {typeof detail.answer === 'object' && detail.answer?.name 
+                          ? <a href={detail.answer.data} target="_blank" rel="noreferrer" className="text-indigo-600 underline">{detail.answer.name}</a>
+                          : (detail.answer || <span className="text-slate-400 italic">未作答</span>)
+                        }
+                     </div>
+                     {q.aiGrading && q.markingScheme && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 text-xs text-purple-700"><span className="font-bold">{t.markingScheme}：</span>{q.markingScheme}</div>
+                     )}
+                     {detail.feedback && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 text-sm text-indigo-700"><span className="font-bold">{t.aiFeedback}</span><span className="font-medium">{detail.feedback}</span></div>
+                     )}
+                   </div>
+                </div>
+              )
+            })}
+          </div>
+        );
+      };
+
+      const getTypeIcon = (type) => {
+        switch(type) {
+          case 'mc': return <List className="text-blue-500" />;
+          case 'short_answer': return <AlignLeft className="text-green-500" />;
+          case 'long_answer': return <FileText className="text-purple-500" />;
+          case 'upload': return <ImageIcon className="text-orange-500" />;
+          default: return <FileText />;
+        }
+      };
+
+      const getTypeName = (type) => t[type] || t.mc;
+
+      // ===================== Views =====================
+      const renderClassroom = () => {
+        const displayedSets = role === 'student' ? practiceSets.filter(set => set.isPublished) : practiceSets;
+        return (
+          <div className="max-w-6xl mx-auto p-6">
+            <div className="flex justify-between items-center mb-8 mt-4">
+              <div>
+                <h2 className="text-3xl font-bold text-slate-800 mb-2">{role === 'teacher' ? t.classroom : `${t.classroom} (${t.studentRole})`}</h2>
+                <p className="text-slate-500">{t.appTitle} - {role === 'teacher' ? 'Manage assignments' : 'Complete assignments'}</p>
+              </div>
+              {role === 'teacher' && (
+                <button onClick={createNewPractice} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition font-medium shadow-md">
+                  <Plus size={20} /> {t.addPractice}
+                </button>
+              )}
+            </div>
+            {displayedSets.length === 0 ? (
+              <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-12 flex flex-col items-center justify-center text-center text-slate-400">
+                <BookOpen size={64} className="mb-4 text-slate-200" />
+                <h3 className="text-xl font-bold mb-2">{role === 'teacher' ? t.noPractices : t.studentNoPractices}</h3>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {displayedSets.map(set => {
+                  const isPastDue = set.dueDate ? new Date() > new Date(set.dueDate) : false;
+                  const canSeeGrades = !set.dueDate || isPastDue;
+                  const isStudentSubmitted = role === 'student' && submissions[set.id]?.[currentStudentId];
+                  
+                  let actionText = '';
+                  if (role === 'teacher') actionText = t.edit + ' \u2192';
+                  else {
+                     if (isStudentSubmitted) {
+                        actionText = canSeeGrades ? t.viewResult + ' \u2192' : t.waitingForGrades;
+                     } else {
+                        actionText = isPastDue ? t.overdue : t.enterPractice + ' \u2192';
+                     }
+                  }
+
+                  return (
+                    <div key={set.id} onClick={() => openPractice(set.id)} className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col h-48 group relative">
+                      <div className="p-5 flex-grow">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex flex-col gap-1 w-full pr-6">
+                            <h3 className="text-lg font-bold text-slate-800 line-clamp-2">{set.title}</h3>
+                            {role === 'teacher' ? (
+                              <span className={`text-[10px] px-2 py-0.5 rounded font-bold w-fit ${set.isPublished ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                {set.isPublished ? t.statusPublished : t.statusDraft}
+                              </span>
+                            ) : (
+                              isStudentSubmitted ? (
+                                canSeeGrades ? (
+                                  <span className="text-[10px] px-2 py-0.5 rounded font-bold w-fit bg-emerald-100 text-emerald-700">
+                                    {t.completed} ({submissions[set.id][currentStudentId].earned}/{submissions[set.id][currentStudentId].total})
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] px-2 py-0.5 rounded font-bold w-fit bg-blue-100 text-blue-700" title={t.gradesAvailableAfter}>
+                                    {t.completed} ({t.waitingForGrades})
+                                  </span>
+                                )
+                              ) : (
+                                isPastDue && <span className="text-[10px] px-2 py-0.5 rounded font-bold w-fit bg-red-100 text-red-700">{t.overdue}</span>
+                              )
+                            )}
+                          </div>
+                          {role === 'teacher' && <div className="absolute right-4 top-4"><Trash2 size={18} className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition" onClick={(e) => deletePracticeSet(e, set.id)} /></div>}
+                        </div>
+                        <div className="text-sm text-slate-500 flex items-center gap-2 mt-4"><FileText size={14} /> {set.questions.length} {t.questionsCount}</div>
+                      </div>
+                      <div className="bg-slate-50 px-5 py-3 border-t text-xs flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-slate-400">
+                          <span>{t.createdOn} {set.date}</span>
+                          {set.dueDate && (
+                            <span className={`font-medium ${isPastDue && role === 'student' && !isStudentSubmitted ? 'text-red-600' : 'text-orange-600'}`}>
+                              <Clock size={12} className="inline mr-1 -mt-0.5"/>{t.dueDate}: {new Date(set.dueDate).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            {role === 'teacher' && set.isPublished && (
+                              <button onClick={(e) => openReport(e, set.id)} className="text-purple-600 font-bold hover:text-purple-800 flex items-center gap-1 z-10 relative">
+                                <BarChart2 size={14} /> {t.viewReport}
+                              </button>
+                            )}
+                          </div>
+                          <span className="text-indigo-600 font-medium opacity-0 group-hover:opacity-100 transition">
+                            {actionText}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      const renderEditor = () => {
+        if (!currentPractice) return null;
+        return (
+          <div className="max-w-6xl mx-auto p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="md:col-span-4 flex items-center gap-4 mb-2">
+              <button onClick={() => setView('classroom')} className="p-2 bg-white border rounded-lg hover:bg-slate-50 transition"><ArrowLeft size={20} /></button>
+              <input className="flex-1 text-2xl font-bold bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-indigo-500 outline-none pb-1 transition px-2" value={currentPractice.title} onChange={e => updateCurrentPractice({ title: e.target.value })} />
+            </div>
+            <div className="md:col-span-1 space-y-6">
+              <div className="bg-white p-5 rounded-xl border shadow-sm">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600"><Plus size={20}/> {t.addQuestion}</h2>
+                <div className="space-y-3">
+                  <button onClick={() => setShowAiModal(true)} className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium shadow-md hover:from-indigo-600 transition"><Sparkles size={18} /> {t.aiGenerate}</button>
+                  <div className="relative flex py-2 items-center text-slate-400 text-xs"><div className="flex-grow border-t"></div><span className="mx-4">{t.manualAdd}</span><div className="flex-grow border-t"></div></div>
+                  <button onClick={() => addManualQuestion('mc')} className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-blue-50 transition text-sm font-medium"><List size={16} className="text-blue-600"/> {t.mc}</button>
+                  <button onClick={() => addManualQuestion('short_answer')} className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-green-50 transition text-sm font-medium"><AlignLeft size={16} className="text-green-600"/> {t.shortAnswer}</button>
+                  <button onClick={() => addManualQuestion('long_answer')} className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-purple-50 transition text-sm font-medium"><FileText size={16} className="text-purple-600"/> {t.longAnswer}</button>
+                  <button onClick={() => addManualQuestion('upload')} className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-orange-50 transition text-sm font-medium"><ImageIcon size={16} className="text-orange-600"/> {t.upload}</button>
+                </div>
+              </div>
+              
+              <div className="bg-white p-5 rounded-xl border shadow-sm text-sm">
+                <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5"><Calendar size={16} className="text-indigo-600"/> {t.dueDate}</h3>
+                <input 
+                  type="datetime-local" 
+                  className="w-full border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500" 
+                  value={currentPractice.dueDate || ''} 
+                  onChange={e => updateCurrentPractice({ dueDate: e.target.value })} 
+                />
+                <p className="text-xs text-slate-400 mt-2">{t.dueDateHelp}</p>
+              </div>
+
+              <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm">
+                <h3 className="font-bold text-indigo-800 mb-2">{t.summary}</h3>
+                <div className="flex justify-between mb-1"><span>{t.totalQuestions}：</span><b>{currentPractice.questions.length}</b></div>
+              </div>
+            </div>
+            <div className="md:col-span-3 space-y-4">
+              {currentPractice.questions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 bg-white border border-dashed rounded-xl text-slate-300">
+                  <FileText size={48} className="mb-4" /> <p>{t.emptyPractice}</p>
+                </div>
+              ) : (
+                currentPractice.questions.map((q, idx) => (
+                  <div key={q.id} className="bg-white border rounded-xl shadow-sm overflow-hidden group">
+                    <div className="bg-slate-50 px-5 py-3 border-b flex justify-between items-center">
+                      <div className="flex items-center gap-3 text-sm font-medium">
+                        <span className="bg-slate-200 text-slate-700 px-2 py-1 rounded font-bold text-xs">Q{idx + 1}</span>
+                        {getTypeIcon(q.type)} {getTypeName(q.type)}
+                        {q.aiGrading && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold">{t.aiGradingEnabled}</span>}
+                      </div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => toggleEditQuestion(q.id)} className="p-1.5 hover:text-indigo-600 hover:bg-indigo-50 rounded">{q.isEditing ? <Save size={18} /> : <Edit3 size={18} />}</button>
+                        <button onClick={() => deleteQuestion(q.id)} className="p-1.5 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={18} /></button>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      {q.isEditing ? (
+                        <div className="space-y-4">
+                          <div><label className="block text-sm font-medium mb-1">{t.questionContent}</label><textarea className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500 min-h-[80px]" value={q.question} onChange={e => updateQuestion(q.id, 'question', e.target.value)} /></div>
+                          {q.type === 'mc' && (
+                            <div className="space-y-2">
+                              {q.options.map((opt, oIdx) => (
+                                <div key={oIdx} className="flex items-center gap-3">
+                                  <span className="font-bold text-slate-400 w-4">{String.fromCharCode(65 + oIdx)}.</span>
+                                  <input className="flex-1 border rounded p-2 outline-none" value={opt} onChange={e => updateOption(q.id, oIdx, e.target.value)} />
+                                  <input type="radio" checked={q.answer === opt && opt !== ''} onChange={() => updateQuestion(q.id, 'answer', opt)} className="w-4 h-4 text-indigo-600" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {(q.type !== 'mc') && (
+                            <div className="space-y-4 pt-4 border-t">
+                              <label className="flex items-center gap-2 cursor-pointer w-fit"><input type="checkbox" checked={q.aiGrading} onChange={e => updateQuestion(q.id, 'aiGrading', e.target.checked)} className="w-4 h-4 text-indigo-600" /> <span className="text-sm font-medium">{t.enableAiGrading}</span></label>
+                              {q.aiGrading && (
+                                <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 space-y-4">
+                                  <div className="flex gap-4 items-center"><label className="text-sm font-bold text-purple-900">{t.totalScore}</label><input type="number" className="border rounded p-2 w-20 outline-none" value={q.totalScore} onChange={e => updateQuestion(q.id, 'totalScore', Number(e.target.value))} /></div>
+                                  <div><label className="block text-sm font-bold text-purple-900 mb-1">{t.markingScheme}</label><textarea className="w-full border border-purple-200 rounded p-3 outline-none min-h-[80px]" value={q.markingScheme} onChange={e => updateQuestion(q.id, 'markingScheme', e.target.value)} /></div>
+                                </div>
+                              )}
+                              {q.type === 'upload' && (
+                                <div className="space-y-2">
+                                  <label className="block text-sm font-medium">{t.teacherReference}</label>
+                                  <input type="file" onChange={e => handleFileUpload(q.id, e.target.files[0])} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex justify-end"><button onClick={() => toggleEditQuestion(q.id)} className="px-4 py-2 bg-slate-800 text-white rounded-md text-sm">{t.finishEdit}</button></div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="text-lg font-medium whitespace-pre-wrap">{q.question || <span className="text-slate-300 italic">{t.notEntered}</span>}</div>
+                          {q.type === 'mc' && <div className="space-y-2">{q.options.map((opt, oIdx) => <div key={oIdx} className={`p-3 rounded-lg border ${q.answer === opt ? 'bg-green-50 border-green-200 text-green-800' : 'bg-slate-50'}`}><span className="font-bold mr-2">{String.fromCharCode(65 + oIdx)}.</span> {opt}</div>)}</div>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const renderStudentPractice = () => {
+        if (!currentPractice) return null;
+        
+        const isReadOnly = submissions[currentPractice.id]?.[currentStudentId] != null;
+        const subDetails = isReadOnly ? submissions[currentPractice.id][currentStudentId].details : null;
+
+        return (
+          <div className="max-w-4xl mx-auto p-6 space-y-6">
+            <div className="flex items-center gap-4 mb-6"><button onClick={() => setView('classroom')} className="p-2 border rounded-lg hover:bg-slate-50"><ArrowLeft size={20}/></button><h2 className="text-2xl font-bold">{currentPractice.title}</h2></div>
+            
+            {isReadOnly && (
+              <div className="bg-indigo-600 text-white p-4 rounded-lg flex justify-between items-center shadow-md mb-6">
+                 <span className="font-bold">{t.totalScore}</span>
+                 <span className="text-2xl font-bold">{submissions[currentPractice.id][currentStudentId].earned} / {submissions[currentPractice.id][currentStudentId].total}</span>
+              </div>
+            )}
+
+            <div className="space-y-6">
+              {currentPractice.questions.map((q, idx) => {
+                const detail = subDetails ? subDetails[q.id] : null;
+                return (
+                  <div key={q.id} className="bg-white border rounded-xl p-6 shadow-sm">
+                    <div className="flex items-start gap-3 mb-4">
+                      <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded font-bold text-sm">Q{idx + 1}</span>
+                      <div className="text-lg font-medium flex-1 whitespace-pre-wrap">{q.question}</div>
+                      {isReadOnly ? (
+                        <span className="text-sm font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded shrink-0 border border-purple-100">
+                          {detail?.score || 0} / {detail?.max || (q.totalScore || 10)} 分
+                        </span>
+                      ) : (
+                        q.aiGrading && <span className="text-xs font-bold text-purple-600 shrink-0">{q.totalScore} 分</span>
+                      )}
+                    </div>
+                    <div className="mt-4 pl-0 sm:pl-11">
+                      {q.type === 'mc' && (
+                        <div className="space-y-2">
+                          {q.options.map((opt, oIdx) => {
+                            const isChecked = studentAnswers[q.id] === opt;
+                            const isCorrectAnswer = q.answer === opt;
+                            let optionClass = 'bg-slate-50 border-slate-200';
+                            
+                            if (isReadOnly) {
+                               if (isCorrectAnswer) optionClass = 'bg-green-50 border-green-300 text-green-800 font-bold';
+                               else if (isChecked && !isCorrectAnswer) optionClass = 'bg-red-50 border-red-300 text-red-800 line-through';
+                            } else {
+                               optionClass = isChecked ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 hover:bg-slate-100 cursor-pointer';
+                            }
+
+                            return (
+                              <label key={oIdx} className={`flex items-center gap-3 p-3 rounded-lg border transition ${optionClass}`}>
+                                <input type="radio" disabled={isReadOnly} checked={isChecked} onChange={() => !isReadOnly && setStudentAnswers(prev => ({...prev, [q.id]: opt}))} className="w-4 h-4" /> 
+                                <span>{opt}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {(q.type === 'short_answer' || q.type === 'long_answer') && (
+                        <div className="space-y-3">
+                          <textarea disabled={isReadOnly} className="w-full border rounded-lg p-3 min-h-[100px] outline-none disabled:bg-slate-100 disabled:text-slate-600" placeholder="輸入答案..." value={studentAnswers[q.id] || ''} onChange={e => !isReadOnly && setStudentAnswers(prev => ({...prev, [q.id]: e.target.value}))} />
+                          {isReadOnly && (
+                            <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-sm space-y-2 text-emerald-800 mt-2">
+                              <p><span className="font-bold">{t.correctAnswerIs}</span> {q.answer}</p>
+                              {q.aiGrading && q.markingScheme && <p><span className="font-bold">{t.markingScheme}:</span> {q.markingScheme}</p>}
+                              {detail?.feedback && <p className="pt-2 border-t border-emerald-200 mt-2 text-indigo-700"><span className="font-bold">{t.aiFeedback}</span> {detail.feedback}</p>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {q.type === 'upload' && (
+                        <div className="space-y-3">
+                          {!isReadOnly && (
+                            <input type="file" onChange={e => {
+                              const file = e.target.files[0];
+                              if (file && file.size < 2*1024*1024) {
+                                const reader = new FileReader(); reader.onload = ev => setStudentAnswers(prev => ({...prev, [q.id]: { name: file.name, data: ev.target.result }})); reader.readAsDataURL(file);
+                              } else if(file) {
+                                showNotification(t.fileTooLarge, 'error');
+                              }
+                            }} className="block text-sm" />
+                          )}
+                          
+                          {studentAnswers[q.id] && (
+                             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-md text-sm border border-green-200 mt-2">
+                                <CheckCircle size={16}/> {t.referenceUploaded}: {studentAnswers[q.id].name}
+                                {isReadOnly && <a href={studentAnswers[q.id].data} target="_blank" rel="noreferrer" className="ml-2 text-indigo-600 hover:underline">{t.viewAttachment}</a>}
+                             </div>
+                          )}
+                          
+                          {isReadOnly && q.referenceFile && (
+                            <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg text-sm text-indigo-800 mt-3 flex items-center gap-2">
+                              <FileText size={16}/> <span className="font-bold">{t.teacherReference}:</span>
+                              <a href={q.referenceFile.data} target="_blank" rel="noreferrer" className="text-indigo-600 underline">{q.referenceFile.name}</a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {!isReadOnly && (
+              <div className="flex justify-end pt-4">
+                <button onClick={submitAssignment} className="px-8 py-3 bg-indigo-600 text-white rounded-lg font-bold shadow-lg hover:bg-indigo-700 transition flex items-center gap-2"><CheckCircle size={20} /> {t.submitAssignment}</button>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      const renderReport = () => {
+        if (!currentPractice) return null;
+        const practiceSubmissions = submissions[currentPractice.id] || {};
+        const submittedIds = STUDENT_IDS.filter(sId => practiceSubmissions[sId]);
+        
+        const mistakes = [];
+        currentPractice.questions.forEach((q, idx) => {
+          const max = q.type === 'mc' ? 10 : (q.totalScore || 10);
+          const wrongStudents = [];
+          STUDENT_IDS.forEach(sId => {
+            const sub = practiceSubmissions[sId];
+            if (sub && sub.details[q.id] && sub.details[q.id].score < max) {
+              wrongStudents.push({ sId, detail: sub.details[q.id] });
+            }
+          });
+          if (wrongStudents.length > 0) {
+            mistakes.push({ question: q, index: idx + 1, wrongStudents });
+          }
+        });
+
+        return (
+          <div className="max-w-6xl mx-auto p-6 space-y-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4">
+              <div className="flex items-center gap-4">
+                <button onClick={() => setView('classroom')} className="p-2 bg-white border rounded-lg hover:bg-slate-50 transition"><ArrowLeft size={20} /></button>
+                <h2 className="text-2xl font-bold">{currentPractice.title} - {t.report}</h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={downloadCSV} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded font-medium shadow-sm hover:bg-emerald-700 transition text-sm"><Download size={14}/> {t.downloadCSV}</button>
+                {submittedIds.length > 0 && (
+                  <>
+                    <button onClick={handleBatchZip} className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 text-white rounded font-medium shadow-sm hover:bg-amber-700 transition text-sm"><Archive size={14}/> {t.batchDownloadPDFs}</button>
+                    <button onClick={handleMergePDF} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded font-medium shadow-sm hover:bg-indigo-700 transition text-sm"><FilePdf size={14}/> {t.mergeDownloadPDF}</button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-sm">
+                    <th className="p-4 font-medium">學生姓名</th>
+                    <th className="p-4 font-medium">{t.status}</th>
+                    <th className="p-4 font-medium">{t.score}</th>
+                    <th className="p-4 font-medium text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STUDENT_IDS.map(sId => {
+                    const sub = practiceSubmissions[sId];
+                    return (
+                      <tr key={sId} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                        <td className="p-4 font-bold text-slate-700">{t.students[sId]}</td>
+                        <td className="p-4">
+                          {sub ? <span className="bg-green-100 text-green-700 px-2.5 py-1 rounded text-xs font-bold">{t.completed}</span> 
+                               : <span className="bg-slate-100 text-slate-500 px-2.5 py-1 rounded text-xs font-bold">{t.notStarted}</span>}
+                        </td>
+                        <td className="p-4 font-bold text-indigo-600">{sub ? `${sub.earned} / ${sub.total}` : '-'}</td>
+                        <td className="p-4 text-right">
+                          {sub && (
+                            <button onClick={() => setReportDetailModal({ show: true, studentId: sId })} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center justify-end gap-1 w-full">
+                              <Eye size={16}/> {t.viewDetails}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-red-50 rounded-xl border border-red-100 p-6 mt-8">
+              <div className="flex items-center gap-2 text-red-700 font-bold text-lg mb-2"><AlertTriangle size={24}/> {t.mistakeBook}</div>
+              <p className="text-sm text-red-600 mb-6">{t.mistakeDesc}</p>
+
+              {mistakes.length === 0 ? (
+                <div className="bg-white rounded-lg p-6 text-center text-slate-500 border border-red-100">{t.noMistakes}</div>
+              ) : (
+                <div className="space-y-4">
+                  {mistakes.map(m => (
+                    <div key={m.question.id} className="bg-white rounded-lg p-4 shadow-sm border border-red-100">
+                      <div className="flex gap-3 mb-3">
+                        <span className="bg-red-100 text-red-800 text-sm font-bold px-2 py-0.5 rounded h-fit">Q{m.index}</span>
+                        <div className="text-slate-800 font-medium">{m.question.question}</div>
+                      </div>
+                      {m.question.type === 'mc' && <div className="text-sm text-emerald-600 font-bold mb-3 ml-11">{t.correctAnswerIs} {m.question.answer}</div>}
+                      <div className="ml-11 bg-slate-50 p-3 rounded border border-slate-200">
+                        <p className="text-xs font-bold text-slate-500 mb-2">{t.gotWrong}：</p>
+                        <div className="space-y-2">
+                          {m.wrongStudents.map(ws => (
+                            <div key={ws.sId} className="flex items-start justify-between text-sm">
+                              <span className="font-bold text-slate-700">{t.students[ws.sId]}</span>
+                              <span className="text-red-500 ml-4 text-right truncate max-w-[60%]">
+                                 {typeof ws.detail.answer === 'object' && ws.detail.answer?.name ? ws.detail.answer.name : (ws.detail.answer || '未作答')} 
+                                 <span className="text-slate-400 ml-2">({ws.detail.score}/{ws.detail.max})</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const renderDetailModal = () => {
+        if (!reportDetailModal.show || !currentPractice) return null;
+        const sub = submissions[currentPractice.id][reportDetailModal.studentId];
+        if (!sub) return null;
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
+                <h3 className="font-bold text-lg flex items-center gap-2"><User size={20} className="text-indigo-600"/> {t.students[reportDetailModal.studentId]} - {t.studentAnswers}</h3>
+                <div className="flex items-center gap-3">
+                  <button onClick={downloadStudentPDF} className="flex items-center gap-2 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-bold transition">
+                     <FilePdf /> {t.downloadPDF}
+                  </button>
+                  <button onClick={() => setReportDetailModal({show: false, studentId: null})} className="text-slate-400 hover:text-slate-600 p-1"><X size={20}/></button>
+                </div>
+              </div>
+              <div className="p-6 overflow-y-auto bg-slate-100 flex-1">
+                <div id="student-report-content">
+                  {renderStudentReportContentJSX(sub, false)}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+          <header className="bg-white border-b px-6 py-4 flex flex-col md:flex-row justify-between items-center sticky top-0 z-10 shadow-sm gap-4">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('classroom')}><div className="bg-indigo-600 text-white p-2 rounded-lg"><BookOpen size={24}/></div><h1 className="text-2xl font-bold">{t.appTitle}</h1></div>
+            <div className="flex items-center gap-3 flex-wrap justify-end">
+              {role === 'teacher' && (
+                <div className="hidden lg:flex items-center gap-3 text-xs bg-slate-50 border px-4 py-2 rounded-lg font-mono text-slate-600"><Bot size={14} className="text-indigo-500"/> <b>{sessionStats.tokens.toLocaleString()}</b> <span className="text-slate-300">|</span> <b className="text-green-600">HK$ {sessionStats.costHKD.toFixed(4)}</b></div>
+              )}
+              
+              {role === 'student' && (
+                <select value={currentStudentId} onChange={e => setCurrentStudentId(e.target.value)} className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold rounded-md px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500">
+                  {STUDENT_IDS.map(id => <option key={id} value={id}>{t.students[id]}</option>)}
+                </select>
+              )}
+
+              <button onClick={toggleRole} className={`flex items-center gap-2 px-4 py-2 rounded-md font-bold border transition ${role === 'teacher' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'}`}>{role === 'teacher' ? <User size={18}/> : <GraduationCap size={18}/>} <span className="hidden sm:inline">{role === 'teacher' ? t.teacherRole : t.studentRole}</span></button>
+              <button onClick={toggleLanguage} className="p-2 hover:bg-slate-100 rounded-md transition"><Globe size={18}/></button>
+              
+              {role === 'teacher' && <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-slate-100 rounded-md transition"><Settings size={18}/></button>}
+              {role === 'teacher' && view === 'editor' && <button onClick={publishPractice} className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-md font-medium shadow-sm hover:bg-indigo-700 transition"><UploadCloud size={18}/> <span>{t.publish}</span></button>}
+            </div>
+          </header>
+
+          <main>
+            {view === 'classroom' && renderClassroom()}
+            {view === 'editor' && renderEditor()}
+            {view === 'student_practice' && renderStudentPractice()}
+            {view === 'report' && renderReport()}
+          </main>
+
+          {renderDetailModal()}
+
+          {/* 隱藏的 PDF 渲染容器 (供 html2pdf 使用) */}
+          {view === 'report' && currentPractice && (
+            <div style={{ position: 'absolute', top: '-15000px', left: '-15000px', width: '800px', zIndex: -1 }}>
+                <div id="merged-pdf-container" className="bg-slate-50">
+                    {STUDENT_IDS.filter(sId => submissions[currentPractice.id]?.[sId]).map((sId, idx) => {
+                        const sub = submissions[currentPractice.id][sId];
+                        return (
+                            <div key={sId} id={`pdf-student-${sId}`} className={`p-8 ${idx > 0 ? 'html2pdf__page-break' : ''}`}>
+                                <h2 className="text-2xl font-bold mb-6 text-slate-800 border-b pb-2">{t.students[sId]} - {currentPractice.title} {t.report}</h2>
+                                {renderStudentReportContentJSX(sub, true)}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+          )}
+
+          {/* Loading 遮罩 */}
+          {isSubmitting && (
+            <div className="fixed inset-0 bg-indigo-900/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-white">
+               <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-white mb-4"></div>
+               <p className="text-xl font-bold animate-pulse">{view === 'report' ? t.generatingPDFs : t.aiGradingInProgress}</p>
+            </div>
+          )}
+
+          {showSettings && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6"><h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Settings size={20}/> {t.systemSettings}</h3><p className="text-xs text-slate-500 mb-3">{t.apiKeyDesc}</p><input type="password" className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="sk-..." value={apiKey} onChange={e => setApiKey(e.target.value)} /><div className="mt-6 flex justify-end gap-3"><button onClick={() => setShowSettings(false)} className="px-4 py-2 text-slate-600">取消</button><button onClick={() => saveApiKey(apiKey)} className="px-4 py-2 bg-indigo-600 text-white rounded-md">儲存</button></div></div>
+            </div>
+          )}
+          {showAiModal && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-indigo-50"><h3 className="font-bold text-indigo-900 flex items-center gap-2"><Sparkles size={20}/> {t.aiGenerate}</h3><button onClick={() => !isGenerating && setShowAiModal(false)}><X size={20}/></button></div>
+                <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold mb-1 text-slate-700">{t.grade}</label><input className="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t.gradePlaceholder} value={aiGrade} onChange={e => setAiGrade(e.target.value)} /></div><div><label className="block text-xs font-bold mb-1 text-slate-700">{t.subject}</label><input className="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t.subjectPlaceholder} value={aiSubject} onChange={e => setAiSubject(e.target.value)} /></div></div>
+                  <div><label className="block text-xs font-bold mb-1 text-slate-700">{t.aiTopic}</label><input className="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t.aiTopicPlaceholder} value={aiTopic} onChange={e => setAiTopic(e.target.value)} /></div>
+                  <div className="grid grid-cols-3 gap-4"><div><label className="block text-xs font-bold mb-1 text-slate-700">{t.questionType}</label><select className="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500" value={aiType} onChange={e => setAiType(e.target.value)}><option value="mc">{t.mc}</option><option value="short_answer">{t.shortAnswer}</option><option value="long_answer">{t.longAnswer}</option></select></div><div><label className="block text-xs font-bold mb-1 text-slate-700">{t.quantity}</label><input type="number" className="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500" value={aiQuantity} onChange={e => setAiQuantity(Number(e.target.value))} /></div><div><label className="block text-xs font-bold mb-1 text-slate-700">{t.difficulty}</label><select className="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500" value={aiDifficulty} onChange={e => setAiDifficulty(e.target.value)}><option value="easy">{t.easy}</option><option value="medium">{t.medium}</option><option value="hard">{t.hard}</option></select></div></div>
+                  <div><label className="block text-xs font-bold mb-1 text-slate-700">{t.specialReq}</label><textarea className="w-full border rounded p-2 min-h-[60px] outline-none focus:ring-2 focus:ring-indigo-500" placeholder={t.specialReqPlaceholder} value={aiSpecialReq} onChange={e => setAiSpecialReq(e.target.value)} /></div>
+                  {isGenerating ? <div className="text-center text-indigo-600 animate-pulse font-bold py-4">{t.generating}</div> : <div className="flex justify-end gap-3 pt-4"><button onClick={() => setShowAiModal(false)} className="px-4 py-2 text-slate-500">取消</button><button onClick={handleAiGenerate} className="px-6 py-2 bg-indigo-600 text-white rounded-md font-bold shadow-md hover:bg-indigo-700 transition">開始生成</button></div>}
+                </div>
+              </div>
+            </div>
+          )}
+          {toast && <div className="fixed bottom-6 right-6 z-50 animate-fade-in-up bg-slate-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2">{toast.msg}</div>}
+          <style dangerouslySetInnerHTML={{__html: `@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } } .animate-fade-in-up { animation: fadeInUp 0.3s ease-out forwards; }`}} />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
