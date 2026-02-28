@@ -37,7 +37,11 @@
             <div class="bg-indigo-600 p-2 rounded-lg text-white">
               <i data-lucide="network" class="w-6 h-6"></i>
             </div>
-            <h1 class="text-xl font-bold text-slate-800 shrink-0">AI 心智圖生成器</h1>
+            <h1 id="app-title" class="text-xl font-bold text-slate-800 shrink-0">AI 心智圖生成器</h1>
+            <button id="lang-toggle-btn" class="ml-1 flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-200" title="Switch Language / 切換語言">
+              <i data-lucide="globe" class="w-4 h-4"></i>
+              <span id="lang-text">EN</span>
+            </button>
           </div>
 
           <!-- API Key Input -->
@@ -103,12 +107,12 @@
 
     <!-- Instructions -->
     <div class="absolute top-6 left-6 z-20 bg-white/80 backdrop-blur shadow-sm p-4 rounded-xl border border-slate-200 text-sm text-slate-600 pointer-events-auto">
-      <p class="font-semibold text-slate-800 mb-2">操作指南</p>
+      <p id="guide-title" class="font-semibold text-slate-800 mb-2">操作指南</p>
       <ul class="list-disc pl-4 space-y-1.5">
-        <li><span class="font-medium text-indigo-600">單擊節點</span>可直接編輯文字</li>
-        <li><span class="font-medium text-indigo-600">滑鼠移至節點</span>可新增或刪除</li>
-        <li>拖曳背景可平移畫布</li>
-        <li>Ctrl + 滾輪可縮放畫布</li>
+        <li id="guide-1"><span class="font-medium text-indigo-600">單擊節點</span>可直接編輯文字</li>
+        <li id="guide-2"><span class="font-medium text-indigo-600">滑鼠移至節點</span>可新增或刪除</li>
+        <li id="guide-3">拖曳背景可平移畫布</li>
+        <li id="guide-4">Ctrl + 滾輪可縮放畫布</li>
       </ul>
     </div>
 
@@ -116,6 +120,12 @@
     <div id="error-container" class="absolute top-6 left-1/2 -translate-x-1/2 z-30 bg-red-50 border border-red-200 text-red-700 px-6 py-3 rounded-xl shadow-lg items-center gap-3 max-w-xl hidden">
       <i data-lucide="alert-circle" class="w-6 h-6 shrink-0 text-red-500"></i>
       <p id="error-text" class="text-sm"></p>
+    </div>
+
+    <!-- Stats Container (Token & Cost) -->
+    <div id="stats-container" class="absolute bottom-6 left-6 z-20 bg-white/90 backdrop-blur shadow-sm p-3 rounded-xl border border-slate-200 text-xs text-slate-500 hidden flex-col gap-1 pointer-events-none">
+      <div id="stats-tokens" class="font-medium"></div>
+      <div id="stats-cost" class="text-indigo-600 font-semibold"></div>
     </div>
 
     <!-- Mindmap Container -->
@@ -127,6 +137,127 @@
   </main>
 
   <script>
+    // --- i18n Translations & State ---
+    let currentLang = 'zh-TW';
+    const i18n = {
+      'zh-TW': {
+        appTitle: 'AI 心智圖生成器',
+        langBtn: 'EN',
+        apiKeyPlaceholder: '輸入 Qwen API Key (sk-...)',
+        topicPlaceholder: '輸入任何主題... (例如：第二次世界大戰、區塊鏈技術、如何學習寫程式)',
+        btnGenerate: '生成',
+        btnGenerating: '思考中...',
+        guideTitle: '操作指南',
+        guide1: '<span class="font-medium text-indigo-600">單擊節點</span>可直接編輯文字',
+        guide2: '<span class="font-medium text-indigo-600">滑鼠移至節點</span>可新增或刪除',
+        guide3: '拖曳背景可平移畫布',
+        guide4: 'Ctrl + 滾輪可縮放畫布',
+        ttDownload: '下載為圖片',
+        ttZoomOut: '縮小',
+        ttReset: '置中重置',
+        ttZoomIn: '放大',
+        ttAddNode: '新增子節點',
+        ttDeleteNode: '刪除節點',
+        newNodeText: '新節點',
+        unnamedNode: '未命名',
+        errNoKey: '請先在上方輸入您的 Qwen API Key',
+        errKeyFormat: '提示：DashScope API Key 通常以 \'sk-\' 開頭，請確認您輸入的不是 AccessKey ID。',
+        errApiNoText: '無效的 API 回應 (查無文本)',
+        errApiJson: 'API 返回的 JSON 格式不符合預期',
+        errApiFail: '生成心智圖時發生錯誤，請檢查 API Key 或稍後再試。',
+        errDownload: '下載圖片失敗，請稍後再試。',
+        statsTokens: 'Token 消耗: {total} (輸入: {in} / 輸出: {out})',
+        statsCost: '預估成本: ~${cost} USD',
+        promptSystem: '你是一個專業的知識圖譜與心智圖專家。請嚴格輸出 JSON 格式。',
+        promptTpl: (topic) => `
+          你是一個專業的知識圖譜與心智圖專家。
+          請根據使用者輸入的主題：「${topic}」，生成一個結構清晰、內容豐富且具體的心智圖資料。
+          
+          請嚴格按照以下 JSON 結構輸出，不要包含任何額外的 Markdown 標記（如 \`\`\`json 等），直接輸出乾淨的 JSON 字串：
+          {
+            "name": "根節點 (主題名稱)",
+            "children": [
+              {
+                "name": "主要子主題 1",
+                "children": [
+                  {
+                    "name": "細節 1",
+                    "children": [
+                      { "name": "更深入的細節" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          
+          要求：
+          1. 最大深度為 4 層（根節點算第 1 層）。
+          2. 內容必須使用繁體中文。
+          3. 每個節點的文字應簡明扼要，方便作為心智圖閱讀。
+          4. 涵蓋該主題的關鍵面向（例如：定義、歷史、核心概念、應用、優缺點等，視主題而定）。
+        `
+      },
+      'en': {
+        appTitle: 'AI Mindmap Gen',
+        langBtn: '中',
+        apiKeyPlaceholder: 'Enter Qwen API Key (sk-...)',
+        topicPlaceholder: 'Enter any topic... (e.g., WWII, Blockchain, Coding)',
+        btnGenerate: 'Generate',
+        btnGenerating: 'Thinking...',
+        guideTitle: 'Guide',
+        guide1: '<span class="font-medium text-indigo-600">Click node</span> to edit text',
+        guide2: '<span class="font-medium text-indigo-600">Hover node</span> to add/delete',
+        guide3: 'Drag background to pan',
+        guide4: 'Ctrl + Scroll to zoom',
+        ttDownload: 'Download Image',
+        ttZoomOut: 'Zoom Out',
+        ttReset: 'Reset View',
+        ttZoomIn: 'Zoom In',
+        ttAddNode: 'Add child node',
+        ttDeleteNode: 'Delete node',
+        newNodeText: 'New Node',
+        unnamedNode: 'Unnamed',
+        errNoKey: 'Please enter your Qwen API Key above.',
+        errKeyFormat: 'Hint: DashScope API Keys usually start with "sk-".',
+        errApiNoText: 'Invalid API response (no text found).',
+        errApiJson: 'API returned unexpected JSON format.',
+        errApiFail: 'Error generating mindmap. Check API Key or try again.',
+        errDownload: 'Failed to download image. Try again later.',
+        statsTokens: 'Tokens: {total} (In: {in} / Out: {out})',
+        statsCost: 'Est. Cost: ~${cost} USD',
+        promptSystem: 'You are a professional knowledge graph and mind map expert. Output strictly in JSON format.',
+        promptTpl: (topic) => `
+          You are a professional knowledge graph and mind map expert.
+          Generate a well-structured, rich, and specific mind map based on the user's topic: "${topic}".
+          
+          Strictly output the following JSON structure without any additional Markdown tags (like \`\`\`json):
+          {
+            "name": "Root Node (Topic Name)",
+            "children": [
+              {
+                "name": "Main Subtopic 1",
+                "children": [
+                  {
+                    "name": "Detail 1",
+                    "children": [
+                      { "name": "Deeper Detail" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          
+          Requirements:
+          1. Maximum depth of 4 levels (root node is level 1).
+          2. Content MUST be in English.
+          3. Node text should be concise for easy reading as a mind map.
+          4. Cover key aspects of the topic (e.g., definition, history, core concepts, applications, pros/cons).
+        `
+      }
+    };
+
     // --- Initial Example Data ---
     let mindmapData = {
       name: "項羽的生平",
@@ -181,6 +312,7 @@
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
     let isLoading = false;
+    let currentStats = null; // 儲存當次生成的 token 資訊
 
     // --- DOM Elements ---
     const canvas = document.getElementById('canvas');
@@ -195,6 +327,59 @@
     const btnText = document.getElementById('btn-text');
     const errorContainer = document.getElementById('error-container');
     const errorText = document.getElementById('error-text');
+    const statsContainer = document.getElementById('stats-container');
+    const statsTokensEl = document.getElementById('stats-tokens');
+    const statsCostEl = document.getElementById('stats-cost');
+
+    // --- Language Update Logic ---
+    const updateStatsUI = () => {
+      if (!currentStats) return;
+      const t = i18n[currentLang];
+      statsTokensEl.textContent = t.statsTokens
+        .replace('{total}', currentStats.total_tokens)
+        .replace('{in}', currentStats.prompt_tokens)
+        .replace('{out}', currentStats.completion_tokens);
+      statsCostEl.textContent = t.statsCost
+        .replace('{cost}', currentStats.cost.toFixed(5));
+      statsContainer.classList.remove('hidden');
+      statsContainer.classList.add('flex');
+    };
+
+    const updateLanguageUI = () => {
+      const t = i18n[currentLang];
+      document.getElementById('app-title').textContent = t.appTitle;
+      document.getElementById('lang-text').textContent = t.langBtn;
+      apiKeyInput.placeholder = t.apiKeyPlaceholder;
+      topicInput.placeholder = t.topicPlaceholder;
+      if (!isLoading) btnText.textContent = t.btnGenerate;
+      else btnText.textContent = t.btnGenerating;
+      
+      document.getElementById('guide-title').textContent = t.guideTitle;
+      document.getElementById('guide-1').innerHTML = t.guide1;
+      document.getElementById('guide-2').innerHTML = t.guide2;
+      document.getElementById('guide-3').textContent = t.guide3;
+      document.getElementById('guide-4').textContent = t.guide4;
+
+      document.getElementById('download-btn').title = t.ttDownload;
+      document.getElementById('zoom-out-btn').title = t.ttZoomOut;
+      document.getElementById('reset-view-btn').title = t.ttReset;
+      document.getElementById('zoom-in-btn').title = t.ttZoomIn;
+
+      if (currentStats) updateStatsUI();
+
+      // Re-render tree to apply new translated tooltips
+      renderTree();
+    };
+
+    document.getElementById('lang-toggle-btn').addEventListener('click', () => {
+      currentLang = currentLang === 'zh-TW' ? 'en' : 'zh-TW';
+      if (topicInput.value === '量子電腦的原理與應用' && currentLang === 'en') {
+        topicInput.value = 'Principles and Applications of Quantum Computing';
+      } else if (topicInput.value === 'Principles and Applications of Quantum Computing' && currentLang === 'zh-TW') {
+        topicInput.value = '量子電腦的原理與應用';
+      }
+      updateLanguageUI();
+    });
 
     // --- Helper Functions ---
     const escapeHTML = (str) => {
@@ -229,7 +414,10 @@
               serverMessage = errorStr || serverMessage;
             }
             if (response.status === 401) {
-              throw new Error(`授權失敗 (401) [${errorCode}]: ${serverMessage}。可能原因：1. 密鑰錯誤 2. 帳號未開通模型服務 3. 帳號欠費。`);
+              const msg = currentLang === 'en' 
+                ? `Auth Failed (401) [${errorCode}]: ${serverMessage}. Possible reasons: 1. Invalid Key 2. Model service not activated 3. Arrears.`
+                : `授權失敗 (401) [${errorCode}]: ${serverMessage}。可能原因：1. 密鑰錯誤 2. 帳號未開通模型服務 3. 帳號欠費。`;
+              throw new Error(msg);
             }
             throw new Error(`[${errorCode}] ${serverMessage}`);
           }
@@ -274,7 +462,7 @@
     const addNode = (pathStr) => {
       const target = getTargetData(pathStr);
       if (!target.children) target.children = [];
-      target.children.push({ name: "新節點" });
+      target.children.push({ name: i18n[currentLang].newNodeText });
       renderTree();
     };
 
@@ -300,11 +488,11 @@
             
             <!-- Hover Action Buttons -->
             <div class="absolute -top-3 -right-4 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity bg-white shadow-md border border-slate-200 rounded-lg p-1 z-30">
-              <button class="add-btn p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-md text-slate-400 transition-colors" title="新增子節點" data-path="${pathStr}">
+              <button class="add-btn p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-md text-slate-400 transition-colors" title="${i18n[currentLang].ttAddNode}" data-path="${pathStr}">
                 <i data-lucide="plus" class="w-3.5 h-3.5 pointer-events-none"></i>
               </button>
               ${!isRoot ? `
-              <button class="delete-btn p-1.5 hover:bg-red-50 hover:text-red-600 rounded-md text-slate-400 transition-colors" title="刪除節點" data-path="${pathStr}">
+              <button class="delete-btn p-1.5 hover:bg-red-50 hover:text-red-600 rounded-md text-slate-400 transition-colors" title="${i18n[currentLang].ttDeleteNode}" data-path="${pathStr}">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
               </button>
               ` : ''}
@@ -375,6 +563,7 @@
     };
 
     const setLoading = (loading) => {
+      const t = i18n[currentLang];
       isLoading = loading;
       topicInput.disabled = loading;
       generateBtn.disabled = loading;
@@ -382,12 +571,14 @@
       if (loading) {
         btnIconNormal.classList.add('hidden');
         btnIconLoading.classList.remove('hidden');
-        btnText.textContent = '思考中...';
+        btnText.textContent = t.btnGenerating;
         mindmapRoot.classList.add('opacity-30', 'blur-sm', 'pointer-events-none');
+        statsContainer.classList.add('hidden');
+        statsContainer.classList.remove('flex');
       } else {
         btnIconNormal.classList.remove('hidden');
         btnIconLoading.classList.add('hidden');
-        btnText.textContent = '生成';
+        btnText.textContent = t.btnGenerate;
         mindmapRoot.classList.remove('opacity-30', 'blur-sm', 'pointer-events-none');
       }
     };
@@ -516,7 +707,7 @@
         const saveEdit = () => {
           const val = textarea.value.trim();
           if (val !== currentText) {
-            updateNode(pathStr, val || '未命名');
+            updateNode(pathStr, val || i18n[currentLang].unnamedNode);
           } else {
             renderTree(); // 恢復原狀
           }
@@ -538,57 +729,31 @@
     generateForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const topic = topicInput.value.trim();
+      const t = i18n[currentLang];
       if (!topic) return;
 
       const cleanApiKey = apiKeyInput.value.trim();
       if (!cleanApiKey) {
-        showError("請先在上方輸入您的 Qwen API Key");
+        showError(t.errNoKey);
         return;
       }
 
       if (!cleanApiKey.startsWith("sk-")) {
-        showError("提示：DashScope API Key 通常以 'sk-' 開頭，請確認您輸入的不是 AccessKey ID。");
+        showError(t.errKeyFormat);
         return;
       }
 
       setLoading(true);
       showError(null);
 
-      const prompt = `
-        你是一個專業的知識圖譜與心智圖專家。
-        請根據使用者輸入的主題：「${topic}」，生成一個結構清晰、內容豐富且具體的心智圖資料。
-        
-        請嚴格按照以下 JSON 結構輸出，不要包含任何額外的 Markdown 標記（如 \`\`\`json 等），直接輸出乾淨的 JSON 字串：
-        {
-          "name": "根節點 (主題名稱)",
-          "children": [
-            {
-              "name": "主要子主題 1",
-              "children": [
-                {
-                  "name": "細節 1",
-                  "children": [
-                    { "name": "更深入的細節" }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-        
-        要求：
-        1. 最大深度為 4 層（根節點算第 1 層）。
-        2. 內容必須使用繁體中文。
-        3. 每個節點的文字應簡明扼要，方便作為心智圖閱讀。
-        4. 涵蓋該主題的關鍵面向（例如：定義、歷史、核心概念、應用、優缺點等，視主題而定）。
-      `;
+      const prompt = t.promptTpl(topic);
 
       try {
         const url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
         const payload = {
           model: "qwen-plus",
           messages: [
-            { role: "system", content: "你是一個專業的知識圖譜與心智圖專家。請嚴格輸出 JSON 格式。" },
+            { role: "system", content: t.promptSystem },
             { role: "user", content: prompt }
           ],
           temperature: 0.3
@@ -604,7 +769,25 @@
         });
 
         let textResponse = result.choices?.[0]?.message?.content;
-        if (!textResponse) throw new Error("無效的 API 回應 (查無文本)");
+        let usage = result.usage;
+        if (!textResponse) throw new Error(t.errApiNoText);
+
+        // 紀錄 Token 與成本 (以 qwen-plus 國際版標準定價估算)
+        // 輸入約 $0.0004 / 1k tokens, 輸出約 $0.0012 / 1k tokens
+        if (usage) {
+          const promptTokens = usage.prompt_tokens || 0;
+          const completionTokens = usage.completion_tokens || 0;
+          const totalTokens = usage.total_tokens || 0;
+          const cost = (promptTokens * 0.0004 / 1000) + (completionTokens * 0.0012 / 1000);
+          
+          currentStats = {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens,
+            cost: cost
+          };
+          updateStatsUI();
+        }
 
         // 清理可能包含的 Markdown 標記
         textResponse = textResponse.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
@@ -612,7 +795,7 @@
         const parsedData = JSON.parse(textResponse);
         
         if (!parsedData.name || !parsedData.children) {
-          throw new Error("API 返回的 JSON 格式不符合預期");
+          throw new Error(t.errApiJson);
         }
 
         mindmapData = parsedData;
@@ -620,7 +803,7 @@
         renderTree();
       } catch (err) {
         console.error(err);
-        showError(err.message || "生成心智圖時發生錯誤，請檢查 API Key 或稍後再試。");
+        showError(err.message || t.errApiFail);
       } finally {
         setLoading(false);
       }
