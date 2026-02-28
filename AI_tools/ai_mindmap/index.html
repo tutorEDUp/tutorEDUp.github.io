@@ -10,6 +10,11 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- 引入 html2canvas 供下載圖片使用 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- 引入 pdf.js 供解析 PDF 使用 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+  <!-- 引入 JSZip 供解析 PPTX 與 DOCX 使用 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     /* 隱藏捲軸但保留功能 */
     ::-webkit-scrollbar {
@@ -92,8 +97,8 @@
               <textarea id="custom-req-input" rows="2" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm text-slate-700 transition-all resize-none" placeholder="例如：請著重在經濟方面的影響、使用專業術語..."></textarea>
             </div>
             <div>
-              <label id="lbl-file-upload" class="block text-sm font-medium text-slate-700 mb-1">上傳參考文件 (支援 TXT, MD, CSV)</label>
-              <input type="file" id="file-input" accept=".txt,.md,.csv,.json" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all cursor-pointer"/>
+              <label id="lbl-file-upload" class="block text-sm font-medium text-slate-700 mb-1">上傳參考文件 (支援 TXT, PDF, DOCX, PPTX...)</label>
+              <input type="file" id="file-input" accept=".txt,.md,.csv,.json,.pdf,.docx,.pptx" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all cursor-pointer"/>
               <p id="file-status" class="text-xs text-slate-400 mt-1 hidden"></p>
             </div>
           </div>
@@ -205,14 +210,15 @@
         errApiJson: 'API 返回的 JSON 格式不符合預期',
         errApiFail: '生成心智圖時發生錯誤，請檢查 API Key 或稍後再試。',
         errDownload: '下載圖片失敗，請稍後再試。',
-        errFileTooLarge: '文件過大，請上傳小於 1MB 的純文本檔案。',
-        errFileRead: '讀取文件失敗。',
+        errFileTooLarge: '文件過大，請上傳小於 10MB 的檔案。',
+        errFileRead: '讀取或解析文件失敗，請確認檔案格式是否正確。',
         statsTokens: 'Token 消耗: {total} (輸入: {in} / 輸出: {out})',
         statsCost: '預估成本: ~HK${cost}',
         lblCustomReq: '附加生成要求 (選填)',
-        lblFileUpload: '上傳參考文件 (支援 TXT, MD, CSV)',
+        lblFileUpload: '上傳參考文件 (支援 TXT, PDF, DOCX, PPTX...)',
         phCustomReq: '例如：請著重在經濟方面的影響、使用專業術語...',
         ttAdvanced: '進階設定',
+        fileParsing: '正在解析文件中，請稍候...',
         fileLoaded: '已載入文件：{name}',
         promptSystem: '你是一個專業的知識圖譜與心智圖專家。請嚴格輸出 JSON 格式。',
         promptTpl: (topic, customReq, refText) => `
@@ -275,14 +281,15 @@
         errApiJson: 'API returned unexpected JSON format.',
         errApiFail: 'Error generating mindmap. Check API Key or try again.',
         errDownload: 'Failed to download image. Try again later.',
-        errFileTooLarge: 'File too large. Please upload a text file under 1MB.',
-        errFileRead: 'Failed to read file.',
+        errFileTooLarge: 'File too large. Please upload a file under 10MB.',
+        errFileRead: 'Failed to read or parse the file. Please check the format.',
         statsTokens: 'Tokens: {total} (In: {in} / Out: {out})',
         statsCost: 'Est. Cost: ~HK${cost}',
         lblCustomReq: 'Additional Requirements (Optional)',
-        lblFileUpload: 'Upload Reference File (TXT, MD, CSV)',
+        lblFileUpload: 'Upload Reference File (TXT, PDF, DOCX, PPTX...)',
         phCustomReq: 'e.g., Focus on economic impacts, use bullet points...',
         ttAdvanced: 'Advanced Settings',
+        fileParsing: 'Parsing file, please wait...',
         fileLoaded: 'Loaded file: {name}',
         promptSystem: 'You are a professional knowledge graph and mind map expert. Output strictly in JSON format.',
         promptTpl: (topic, customReq, refText) => `
@@ -403,66 +410,7 @@
     const txtExpMd = document.getElementById('txt-exp-md');
     const txtExpJson = document.getElementById('txt-exp-json');
 
-    // --- Language Update Logic ---
-    const updateStatsUI = () => {
-      if (!currentStats) return;
-      const t = i18n[currentLang];
-      statsTokensEl.textContent = t.statsTokens
-        .replace('{total}', currentStats.total_tokens)
-        .replace('{in}', currentStats.prompt_tokens)
-        .replace('{out}', currentStats.completion_tokens);
-      statsCostEl.textContent = t.statsCost
-        .replace('{cost}', currentStats.cost.toFixed(5));
-      statsContainer.classList.remove('hidden');
-      statsContainer.classList.add('flex');
-    };
-
-    const updateLanguageUI = () => {
-      const t = i18n[currentLang];
-      document.getElementById('app-title').textContent = t.appTitle;
-      document.getElementById('lang-text').textContent = t.langBtn;
-      apiKeyInput.placeholder = t.apiKeyPlaceholder;
-      topicInput.placeholder = t.topicPlaceholder;
-      if (!isLoading) btnText.textContent = t.btnGenerate;
-      else btnText.textContent = t.btnGenerating;
-      
-      document.getElementById('guide-title').textContent = t.guideTitle;
-      document.getElementById('guide-1').innerHTML = t.guide1;
-      document.getElementById('guide-2').innerHTML = t.guide2;
-      document.getElementById('guide-3').textContent = t.guide3;
-      document.getElementById('guide-4').textContent = t.guide4;
-
-      document.getElementById('download-btn').title = t.ttDownload;
-      document.getElementById('zoom-out-btn').title = t.ttZoomOut;
-      document.getElementById('reset-view-btn').title = t.ttReset;
-      document.getElementById('zoom-in-btn').title = t.ttZoomIn;
-
-      document.getElementById('lbl-custom-req').textContent = t.lblCustomReq;
-      document.getElementById('lbl-file-upload').textContent = t.lblFileUpload;
-      customReqInput.placeholder = t.phCustomReq;
-      toggleAdvancedBtn.title = t.ttAdvanced;
-
-      txtExpPng.textContent = t.expPng;
-      txtExpMd.textContent = t.expMd;
-      txtExpJson.textContent = t.expJson;
-
-      if (currentStats) updateStatsUI();
-
-      // Re-render tree to apply new translated tooltips
-      renderTree();
-    };
-
-    document.getElementById('lang-toggle-btn').addEventListener('click', () => {
-      currentLang = currentLang === 'zh-TW' ? 'en' : 'zh-TW';
-      if (topicInput.value === '量子電腦的原理與應用' && currentLang === 'en') {
-        topicInput.value = 'Principles and Applications of Quantum Computing';
-      } else if (topicInput.value === 'Principles and Applications of Quantum Computing' && currentLang === 'zh-TW') {
-        topicInput.value = '量子電腦的原理與應用';
-      }
-      updateLanguageUI();
-    });
-
-    // --- Helper Functions ---
+    // --- Helper Functions & Core Logic ---
     const escapeHTML = (str) => {
       return str.replace(/[&<>'"]/g, tag => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
@@ -513,7 +461,6 @@
       }
     };
 
-    // --- Data Operations ---
     const getTargetData = (pathStr) => {
       if (!pathStr) return mindmapData;
       const indices = pathStr.split(',').map(Number);
@@ -554,7 +501,6 @@
       renderTree();
     };
 
-    // --- Render Logic ---
     const buildNodeHTML = (node, pathStr = "", level = 0, isRoot = true) => {
       const hasChildren = node.children && node.children.length > 0;
       const nodeClasses = getNodeClasses(level);
@@ -666,11 +612,72 @@
       }
     };
 
-    // --- Event Listeners ---
+    // --- Language Update Logic ---
+    const updateStatsUI = () => {
+      if (!currentStats) return;
+      const t = i18n[currentLang];
+      statsTokensEl.textContent = t.statsTokens
+        .replace('{total}', currentStats.total_tokens)
+        .replace('{in}', currentStats.prompt_tokens)
+        .replace('{out}', currentStats.completion_tokens);
+      statsCostEl.textContent = t.statsCost
+        .replace('{cost}', currentStats.cost.toFixed(5));
+      statsContainer.classList.remove('hidden');
+      statsContainer.classList.add('flex');
+    };
 
-    // 1. Canvas Pan & Zoom
+    const updateLanguageUI = () => {
+      const t = i18n[currentLang];
+      document.getElementById('app-title').textContent = t.appTitle;
+      document.getElementById('lang-text').textContent = t.langBtn;
+      apiKeyInput.placeholder = t.apiKeyPlaceholder;
+      topicInput.placeholder = t.topicPlaceholder;
+      if (!isLoading) btnText.textContent = t.btnGenerate;
+      else btnText.textContent = t.btnGenerating;
+      
+      document.getElementById('guide-title').textContent = t.guideTitle;
+      document.getElementById('guide-1').innerHTML = t.guide1;
+      document.getElementById('guide-2').innerHTML = t.guide2;
+      document.getElementById('guide-3').textContent = t.guide3;
+      document.getElementById('guide-4').textContent = t.guide4;
+
+      document.getElementById('download-btn').title = t.ttDownload;
+      document.getElementById('zoom-out-btn').title = t.ttZoomOut;
+      document.getElementById('reset-view-btn').title = t.ttReset;
+      document.getElementById('zoom-in-btn').title = t.ttZoomIn;
+
+      document.getElementById('lbl-custom-req').textContent = t.lblCustomReq;
+      document.getElementById('lbl-file-upload').textContent = t.lblFileUpload;
+      customReqInput.placeholder = t.phCustomReq;
+      toggleAdvancedBtn.title = t.ttAdvanced;
+
+      txtExpPng.textContent = t.expPng;
+      txtExpMd.textContent = t.expMd;
+      txtExpJson.textContent = t.expJson;
+
+      if (currentStats) updateStatsUI();
+
+      // Re-render tree to apply new translated tooltips
+      renderTree();
+    };
+
+    // --- Event Listeners ---
+    document.getElementById('lang-toggle-btn').addEventListener('click', () => {
+      currentLang = currentLang === 'zh-TW' ? 'en' : 'zh-TW';
+      if (topicInput.value === '量子電腦的原理與應用' && currentLang === 'en') {
+        topicInput.value = 'Principles and Applications of Quantum Computing';
+      } else if (topicInput.value === 'Principles and Applications of Quantum Computing' && currentLang === 'zh-TW') {
+        topicInput.value = '量子電腦的原理與應用';
+      }
+      updateLanguageUI();
+    });
+
+    // Toolbar Buttons & Canvas Pan/Zoom
+    document.getElementById('zoom-in-btn').addEventListener('click', () => handleZoom(0.2));
+    document.getElementById('zoom-out-btn').addEventListener('click', () => handleZoom(-0.2));
+    document.getElementById('reset-view-btn').addEventListener('click', resetView);
+
     canvas.addEventListener('mousedown', (e) => {
-      // 若點擊的是節點本身，不觸發拖曳
       if (e.target.closest('.node-container')) return;
       isDragging = true;
       dragStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
@@ -695,20 +702,14 @@
         transform.y -= e.deltaY;
         updateTransformStyle();
       }
-    });
+    }, { passive: false });
 
-    // Toolbar Buttons
-    document.getElementById('zoom-in-btn').addEventListener('click', () => handleZoom(0.2));
-    document.getElementById('zoom-out-btn').addEventListener('click', () => handleZoom(-0.2));
-    document.getElementById('reset-view-btn').addEventListener('click', resetView);
-
-    // 進階設定面板切換
+    // 進階面板與匯出選單切換
     toggleAdvancedBtn.addEventListener('click', () => {
       advancedPanel.classList.toggle('hidden');
       advancedPanel.classList.toggle('flex');
     });
 
-    // 匯出選單切換
     document.getElementById('download-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       exportMenu.classList.toggle('hidden');
@@ -717,21 +718,19 @@
 
     // 點擊外部時自動關閉下拉面板
     document.addEventListener('click', (e) => {
-      // 關閉進階面板
       if (!advancedPanel.contains(e.target) && !toggleAdvancedBtn.contains(e.target) && !advancedPanel.classList.contains('hidden')) {
         advancedPanel.classList.add('hidden');
         advancedPanel.classList.remove('flex');
       }
       
-      // 關閉匯出選單
       if (!exportMenu.contains(e.target) && e.target.closest('#download-btn') === null && !exportMenu.classList.contains('hidden')) {
         exportMenu.classList.add('hidden');
         exportMenu.classList.remove('flex');
       }
     });
 
-    // 處理檔案上傳
-    fileInput.addEventListener('change', (e) => {
+    // 處理檔案上傳與文本萃取 (PDF, PPTX, DOCX, TXT)
+    fileInput.addEventListener('change', async (e) => {
       const t = i18n[currentLang];
       const file = e.target.files[0];
       
@@ -741,8 +740,8 @@
         return;
       }
 
-      // 檢查檔案大小 (限制 1MB，避免 Payload 過大)
-      if (file.size > 1024 * 1024) {
+      // 檢查檔案大小 (放寬到 10MB)
+      if (file.size > 10 * 1024 * 1024) {
         showError(t.errFileTooLarge);
         e.target.value = '';
         uploadedFileContent = "";
@@ -750,22 +749,79 @@
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        uploadedFileContent = evt.target.result;
+      // 顯示解析中提示
+      fileStatus.textContent = t.fileParsing;
+      fileStatus.classList.remove('hidden', 'text-red-500', 'text-indigo-600');
+      fileStatus.classList.add('text-slate-500');
+
+      try {
+        const ext = file.name.split('.').pop().toLowerCase();
+        let extractedText = "";
+
+        // 1. 純文本類
+        if (['txt', 'md', 'csv', 'json'].includes(ext)) {
+          extractedText = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = evt => resolve(evt.target.result);
+            reader.onerror = reject;
+            reader.readAsText(file);
+          });
+        } 
+        // 2. PDF 解析
+        else if (ext === 'pdf') {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            extractedText += textContent.items.map(item => item.str).join(' ') + '\n';
+          }
+        } 
+        // 3. Office 檔案 (利用 JSZip 解開 XML 萃取文字)
+        else if (['docx', 'pptx'].includes(ext)) {
+          const arrayBuffer = await file.arrayBuffer();
+          const zip = await JSZip.loadAsync(arrayBuffer);
+          
+          if (ext === 'docx') {
+            const docXml = zip.file("word/document.xml");
+            if (docXml) {
+              const xmlString = await docXml.async("string");
+              const matches = xmlString.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+              if (matches) extractedText = matches.map(m => m.replace(/<[^>]+>/g, '')).join('\n');
+            }
+          } else if (ext === 'pptx') {
+            const slideFiles = Object.keys(zip.files).filter(name => name.startsWith('ppt/slides/slide') && name.endsWith('.xml'));
+            // 確保簡報按順序解析
+            slideFiles.sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]));
+            
+            for (const slideFile of slideFiles) {
+              const xmlString = await zip.file(slideFile).async("string");
+              const matches = xmlString.match(/<a:t[^>]*>(.*?)<\/a:t>/g);
+              if (matches) extractedText += matches.map(m => m.replace(/<[^>]+>/g, '')).join(' ') + '\n';
+            }
+          }
+        } else {
+          throw new Error("不支援的檔案格式");
+        }
+
+        // 避免萃取的文本太大導致 API 請求失敗，限制在約 30,000 字
+        if (extractedText.length > 30000) {
+          extractedText = extractedText.substring(0, 30000) + '\n\n...[內容過長已截斷]...';
+        }
+
+        uploadedFileContent = extractedText;
         fileStatus.textContent = t.fileLoaded.replace('{name}', file.name);
-        fileStatus.classList.remove('hidden');
-        fileStatus.classList.remove('text-red-500');
+        fileStatus.classList.remove('text-slate-500');
         fileStatus.classList.add('text-indigo-600');
-      };
-      reader.onerror = () => {
+      } catch (err) {
+        console.error("解析文件錯誤:", err);
         showError(t.errFileRead);
         fileStatus.textContent = t.errFileRead;
-        fileStatus.classList.remove('hidden');
+        fileStatus.classList.remove('text-slate-500');
         fileStatus.classList.add('text-red-500');
-        fileStatus.classList.remove('text-indigo-600');
-      };
-      reader.readAsText(file);
+        e.target.value = '';
+        uploadedFileContent = "";
+      }
     });
 
     // --- 匯出功能邏輯 ---
