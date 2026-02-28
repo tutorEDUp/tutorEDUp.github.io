@@ -8,12 +8,20 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- PDF.js 庫 (用於處理 PDF 轉圖片) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // 設定 PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
   <style>
     /* 自訂滾動條樣式 */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    /* 防止在畫布上滑動時觸發頁面滾動 */
+    .drawing-canvas { touch-action: none; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 p-4 md:p-8 font-sans min-h-screen">
@@ -27,17 +35,26 @@
           <i data-lucide="bot" class="w-8 h-8"></i>
         </div>
         <div>
-          <h1 class="text-2xl font-bold text-slate-900">AI 自動批改系統 (DSE 版本)</h1>
-          <p class="text-slate-500 text-sm mt-1">支援圖片錯誤定位、DSE Marking Scheme 評分標準</p>
+          <h1 class="text-2xl font-bold text-slate-900" data-i18n="appTitle">AI 自動批改系統 (DSE 版本)</h1>
+          <p class="text-slate-500 text-sm mt-1" data-i18n="appDesc">支援圖片/PDF、錯誤定位、手寫標記與 DSE 評分標準</p>
         </div>
       </div>
-      <div class="hidden md:flex flex-col items-end text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
-        <div class="font-semibold text-slate-700 flex items-center mb-1">
-          <i data-lucide="coins" class="w-4 h-4 mr-1 text-amber-500"></i>
-          API 費率估算 (qwen-vl-max)
+      <div class="flex flex-row items-center gap-4">
+        <!-- 語言切換按鈕 -->
+        <button id="langToggleBtn" class="flex items-center space-x-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold transition-colors border border-slate-200">
+          <i data-lucide="globe" class="w-4 h-4"></i>
+          <span id="langLabel">EN / 中</span>
+        </button>
+        <!-- 費率提示 -->
+        <div class="hidden md:flex flex-col items-end text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
+          <div class="font-semibold text-slate-700 flex items-center mb-1">
+            <i data-lucide="coins" class="w-4 h-4 mr-1 text-amber-500"></i>
+            <span data-i18n="apiCostTitle">API 費率估算 (qwen-vl-max)</span>
+          </div>
+          <div><span data-i18n="apiCostIn">輸入</span>: ~0.003 RMB / 千 Tokens</div>
+          <div><span data-i18n="apiCostOut">輸出</span>: ~0.009 RMB / 千 Tokens</div>
+          <div id="exchangeRateDisplay" class="text-xs text-slate-400 mt-1">取得實時匯率中...</div>
         </div>
-        <div>輸入: ~0.003 RMB / 千 Tokens</div>
-        <div>輸出: ~0.009 RMB / 千 Tokens</div>
       </div>
     </header>
 
@@ -50,7 +67,7 @@
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
           <h2 class="text-lg font-semibold mb-4 flex items-center">
             <i data-lucide="key" class="w-5 h-5 mr-2 text-slate-400"></i>
-            系統設定
+            <span data-i18n="sysSettings">系統設定</span>
           </h2>
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">DashScope API Key</label>
@@ -62,26 +79,26 @@
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
           <h2 class="text-lg font-semibold mb-2 flex items-center">
             <i data-lucide="file-text" class="w-5 h-5 mr-2 text-slate-400"></i>
-            作業資料
+            <span data-i18n="assignmentData">作業資料</span>
           </h2>
           
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
-              <i data-lucide="book-open" class="w-4 h-4 mr-1"></i> 科目
+              <i data-lucide="book-open" class="w-4 h-4 mr-1"></i> <span data-i18n="subject">科目</span>
             </label>
-            <input type="text" id="subject" placeholder="例如：DSE 數學 Core" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+            <input type="text" id="subject" data-i18n-placeholder="phSubject" placeholder="例如：DSE 數學 Core" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
-                <i data-lucide="graduation-cap" class="w-4 h-4 mr-1"></i> 年級
+                <i data-lucide="graduation-cap" class="w-4 h-4 mr-1"></i> <span data-i18n="grade">年級</span>
               </label>
               <input type="text" id="grade" placeholder="S6" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
             </div>
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
-                <i data-lucide="calculator" class="w-4 h-4 mr-1"></i> 滿分
+                <i data-lucide="calculator" class="w-4 h-4 mr-1"></i> <span data-i18n="maxScore">滿分</span>
               </label>
               <input type="number" id="maxScore" value="100" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
             </div>
@@ -91,7 +108,7 @@
             <label class="block text-sm font-medium text-slate-700 mb-1 flex items-center">
               <i data-lucide="list-checks" class="w-4 h-4 mr-1"></i> Marking Scheme
             </label>
-            <textarea id="markingScheme" rows="8" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-y text-sm font-mono" placeholder="[參考 DSE Marking Scheme 格式]
+            <textarea id="markingScheme" rows="8" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-y text-sm font-mono" data-i18n-placeholder="phMarkingScheme" placeholder="[參考 DSE Marking Scheme 格式]
 例題 1：
 (a) 設 y = k1 + k2 * x  (1M)
     代入 (1, 3) 得到 3 = k1 + k2  (1M)
@@ -110,34 +127,62 @@
         
         <!-- 作業圖片區 -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex-grow">
-          <div class="flex justify-between items-center mb-4">
+          
+          <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
             <h2 class="text-lg font-semibold flex items-center">
               <i data-lucide="image" class="w-5 h-5 mr-2 text-slate-400"></i>
-              學生作業區
+              <span data-i18n="studentWorkArea">學生作業區</span>
             </h2>
+
+            <!-- 繪圖工具列 (預設隱藏) -->
+            <div id="drawingToolbar" class="hidden flex-row items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 gap-2">
+              <button id="toolPen" class="p-1.5 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 tooltip-container relative" title="畫筆">
+                <i data-lucide="pen-tool" class="w-4 h-4"></i>
+              </button>
+              <button id="toolEraser" class="p-1.5 rounded-md text-slate-500 hover:bg-slate-200 tooltip-container relative" title="擦膠">
+                <i data-lucide="eraser" class="w-4 h-4"></i>
+              </button>
+              <div class="h-5 w-px bg-slate-300 mx-1"></div>
+              <!-- 顏色選擇 -->
+              <button class="color-btn w-5 h-5 rounded-full bg-red-500 ring-2 ring-offset-1 ring-slate-400" data-color="#ef4444"></button>
+              <button class="color-btn w-5 h-5 rounded-full bg-blue-500" data-color="#3b82f6"></button>
+              <button class="color-btn w-5 h-5 rounded-full bg-slate-900" data-color="#0f172a"></button>
+              <div class="h-5 w-px bg-slate-300 mx-1"></div>
+              <!-- 粗細 -->
+              <input type="range" id="lineWidth" min="1" max="10" value="3" class="w-20 accent-indigo-600">
+              <div class="h-5 w-px bg-slate-300 mx-1"></div>
+              <button id="clearCanvasBtn" class="text-xs font-medium text-slate-600 hover:text-red-600 px-2 py-1 rounded" data-i18n="clearDrawing">清空筆跡</button>
+            </div>
+
             <div id="imageControls" class="hidden flex space-x-3">
-              <button id="addMoreBtn" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">+ 新增圖片</button>
-              <button id="clearAllBtn" class="text-slate-500 hover:text-slate-700 text-sm font-medium">全部清除</button>
+              <button id="addMoreBtn" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">+ <span data-i18n="addImgPdf">新增圖片/PDF</span></button>
+              <button id="clearAllBtn" class="text-slate-500 hover:text-slate-700 text-sm font-medium" data-i18n="clearAll">全部清除</button>
             </div>
           </div>
           
-          <input type="file" id="fileInput" multiple accept="image/*" class="hidden">
+          <input type="file" id="fileInput" multiple accept="image/*,application/pdf" class="hidden">
           
           <!-- 拖曳上傳區 -->
           <div id="uploadZone" class="border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center p-12 text-center hover:bg-slate-50 transition-colors cursor-pointer">
             <i data-lucide="upload" class="w-12 h-12 text-slate-400 mb-4"></i>
-            <p class="text-slate-700 font-medium mb-1">點擊或拖曳圖片至此處上傳 (可多選)</p>
-            <p class="text-slate-500 text-sm">支援 JPG, PNG 等格式</p>
+            <p class="text-slate-700 font-medium mb-1" data-i18n="uploadHint">點擊或拖曳 圖片/PDF 至此處上傳 (可多選)</p>
+            <p class="text-slate-500 text-sm" data-i18n="uploadFormats">支援 JPG, PNG, PDF 等格式</p>
           </div>
 
-          <!-- 圖片預覽區 (隱藏直到有圖片) -->
-          <div id="previewZone" class="hidden flex-col items-center bg-slate-100 rounded-xl overflow-hidden p-4 space-y-6 overflow-y-auto max-h-[800px]">
-            <!-- 圖片將透過 JS 插入這裡 -->
+          <!-- 解析進度提示 -->
+          <div id="loadingZone" class="hidden flex-col items-center justify-center p-12 text-center text-indigo-600">
+            <i data-lucide="loader-2" class="w-10 h-10 animate-spin mb-4"></i>
+            <p class="font-medium" data-i18n="processingFiles">正在處理檔案，請稍候...</p>
+          </div>
+
+          <!-- 圖片預覽區 -->
+          <div id="previewZone" class="hidden flex-col items-center bg-slate-100 rounded-xl overflow-hidden p-4 space-y-6 overflow-y-auto max-h-[800px] relative">
+            <!-- 圖片與 Canvas 將透過 JS 插入這裡 -->
           </div>
 
           <button id="gradeBtn" class="mt-6 w-full py-3.5 rounded-xl font-bold text-lg flex items-center justify-center transition-all shadow-sm bg-slate-200 text-slate-400 cursor-not-allowed" disabled>
             <i data-lucide="bot" class="w-5 h-5 mr-2" id="gradeIcon"></i>
-            <span id="gradeBtnText">開始 AI 批改與錯誤標註</span>
+            <span id="gradeBtnText" data-i18n="startGradingBtn">開始 AI 批改與錯誤標註</span>
           </button>
 
           <!-- 訊息提示區 -->
@@ -153,11 +198,10 @@
           <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
             <h2 class="text-lg font-semibold flex items-center text-slate-800">
               <i data-lucide="check-circle-2" class="w-5 h-5 mr-2 text-indigo-500"></i>
-              批改結果編輯面板
+              <span data-i18n="resultPanelTitle">批改結果編輯面板</span>
             </h2>
             
             <div class="flex items-center gap-4">
-              <!-- 動態顯示成本 -->
               <div id="costDisplay" class="hidden items-center text-sm font-medium text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
                 <i data-lucide="coins" class="w-4 h-4 mr-1.5"></i>
                 <span id="costHkd"></span>
@@ -165,7 +209,7 @@
               </div>
 
               <button id="saveBtn" class="flex items-center text-sm font-medium text-white bg-indigo-600 px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-                <i data-lucide="save" class="w-4 h-4 mr-2"></i> 儲存批改記錄
+                <i data-lucide="save" class="w-4 h-4 mr-2"></i> <span data-i18n="saveResult">儲存批改記錄</span>
               </button>
             </div>
           </div>
@@ -177,7 +221,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="md:col-span-1">
-              <label class="block text-sm font-semibold text-slate-700 mb-2">最終得分</label>
+              <label class="block text-sm font-semibold text-slate-700 mb-2" data-i18n="finalScoreLabel">最終得分</label>
               <div class="flex items-end">
                 <input type="text" id="resultScore" class="w-full text-3xl font-bold text-indigo-600 px-4 py-3 border border-indigo-200 bg-indigo-50/50 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                 <span class="text-slate-400 ml-2 mb-2 text-lg" id="scoreMaxLabel">/ 100</span>
@@ -185,7 +229,7 @@
             </div>
 
             <div class="md:col-span-2">
-              <label class="block text-sm font-semibold text-slate-700 mb-2">整體評語</label>
+              <label class="block text-sm font-semibold text-slate-700 mb-2" data-i18n="generalCommentLabel">整體評語</label>
               <textarea id="resultComment" rows="4" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-y text-slate-700 leading-relaxed"></textarea>
             </div>
           </div>
@@ -194,7 +238,7 @@
           <div id="annotationsListContainer" class="hidden mt-8 pt-6 border-t border-slate-100">
             <h3 class="text-md font-semibold text-slate-800 mb-4 flex items-center">
               <i data-lucide="message-square-warning" class="w-5 h-5 mr-2 text-red-500"></i>
-              圖面錯誤標註明細 (對應上方圖片紅框)
+              <span data-i18n="errorListTitle">圖面錯誤標註明細 (對應上方圖片紅框)</span>
             </h3>
             <div id="annotationsList" class="space-y-3">
               <!-- 動態生成文字方塊 -->
@@ -207,55 +251,166 @@
   </div>
 
   <script>
-    // 初始化 Lucide 圖標
     lucide.createIcons();
 
-    // 狀態變數
-    let imagePreviews = []; // Base64 字串陣列
-    let annotations = [];   // 標註資料陣列
+    // ---------------- 多國語言設定 ----------------
+    let currentLang = 'zh'; // 'zh' or 'en'
+    const translations = {
+      zh: {
+        appTitle: "AI 自動批改系統 (DSE 版本)",
+        appDesc: "支援圖片/PDF、錯誤定位、手寫標記與 DSE 評分標準",
+        apiCostTitle: "API 費率估算 (qwen-vl-max)",
+        apiCostIn: "輸入", apiCostOut: "輸出",
+        sysSettings: "系統設定", assignmentData: "作業資料",
+        subject: "科目", grade: "年級", maxScore: "滿分",
+        phSubject: "例如：DSE 數學 Core",
+        phMarkingScheme: "[參考 DSE Marking Scheme 格式]\n例題 1：\n(a) 設 y = k1 + k2 * x  (1M)\n    代入 (1, 3) 得到 3 = k1 + k2  (1M)\n    解得 k1 = 1, k2 = 2  (1A)\n(b) 當 x = 4, y = 1 + 2(4) = 9  (1A)\n\n*備註：\n- (1M) Method mark：列出正確步驟給分\n- (1A) Answer mark：答案正確給分",
+        studentWorkArea: "學生作業區", clearDrawing: "清空筆跡",
+        addImgPdf: "新增圖片/PDF", clearAll: "全部清除",
+        uploadHint: "點擊或拖曳 圖片/PDF 至此處上傳 (可多選)", uploadFormats: "支援 JPG, PNG, PDF 等格式",
+        processingFiles: "正在處理檔案，請稍候...",
+        startGradingBtn: "開始 AI 批改與錯誤標註", gradingText: "AI 批改及定位中...",
+        resultPanelTitle: "批改結果編輯面板", saveResult: "儲存批改記錄",
+        finalScoreLabel: "最終得分", generalCommentLabel: "整體評語",
+        errorListTitle: "圖面錯誤標註明細 (對應上方圖片紅框)",
+        alertNoKey: "請輸入 API Key。", alertNoImg: "請先上傳學生的作業圖片或 PDF。",
+        alertSuccess: "AI 批改完成！錯誤已在圖上標出，您可以編輯結果。",
+        alertSaveSuccess: "批改結果已儲存！",
+        pagePrefix: "第", pageSuffix: "頁/張"
+      },
+      en: {
+        appTitle: "AI Auto-Grader System (DSE Format)",
+        appDesc: "Supports Image/PDF, error bounding boxes, hand-drawing & DSE marking schemes.",
+        apiCostTitle: "API Cost Est. (qwen-vl-max)",
+        apiCostIn: "Input", apiCostOut: "Output",
+        sysSettings: "System Settings", assignmentData: "Assignment Data",
+        subject: "Subject", grade: "Grade / Form", maxScore: "Max Score",
+        phSubject: "e.g., DSE Math Core",
+        phMarkingScheme: "[DSE Marking Scheme Example]\nQ1:\n(a) Let y = k1 + k2 * x  (1M)\n    Sub (1, 3) to get 3 = k1 + k2  (1M)\n    Solve k1 = 1, k2 = 2  (1A)\n(b) When x = 4, y = 1 + 2(4) = 9  (1A)\n\n*Remarks:\n- (1M) Method mark: correct step/formula\n- (1A) Answer mark: correct answer",
+        studentWorkArea: "Student Work Area", clearDrawing: "Clear Drawing",
+        addImgPdf: "Add Image/PDF", clearAll: "Clear All",
+        uploadHint: "Click or drag Images/PDFs here (Multi-select)", uploadFormats: "Supports JPG, PNG, PDF, etc.",
+        processingFiles: "Processing files, please wait...",
+        startGradingBtn: "Start AI Grading & Annotation", gradingText: "AI is grading...",
+        resultPanelTitle: "Grading Result Editor", saveResult: "Save Results",
+        finalScoreLabel: "Final Score", generalCommentLabel: "General Comment",
+        errorListTitle: "Error Annotations List (Matches red boxes above)",
+        alertNoKey: "Please enter API Key.", alertNoImg: "Please upload image(s) or PDF(s) first.",
+        alertSuccess: "AI Grading complete! Errors are highlighted. You can now edit.",
+        alertSaveSuccess: "Results saved successfully!",
+        pagePrefix: "Page/Img", pageSuffix: ""
+      }
+    };
+
+    function applyLanguage() {
+      const dict = translations[currentLang];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = dict[el.getAttribute('data-i18n')];
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = dict[el.getAttribute('data-i18n-placeholder')];
+      });
+      document.getElementById('langLabel').textContent = currentLang === 'zh' ? 'EN / 中' : '中 / EN';
+      
+      // 更新按鈕狀態文字
+      if (isGrading) {
+        document.getElementById('gradeBtnText').textContent = dict.gradingText;
+      }
+      
+      // 更新圖片標籤
+      const badges = document.querySelectorAll('.page-badge');
+      badges.forEach((badge, idx) => {
+        badge.textContent = `${dict.pagePrefix} ${idx + 1} ${dict.pageSuffix}`.trim();
+      });
+    }
+
+    document.getElementById('langToggleBtn').addEventListener('click', () => {
+      currentLang = currentLang === 'zh' ? 'en' : 'zh';
+      applyLanguage();
+    });
+
+    // ---------------- 狀態變數 ----------------
+    let imagePreviews = []; // { dataUrl: string, width: number, height: number }
+    let annotations = [];   
     let isGrading = false;
+    
+    // 繪圖狀態
+    let drawingCanvases = []; // 存儲每個畫布的上下文與狀態
+    let currentTool = 'pen'; // 'pen' 或 'eraser'
+    let strokeColor = '#ef4444';
+    let strokeWidth = 3;
 
     // DOM 元素選取
     const fileInput = document.getElementById('fileInput');
     const uploadZone = document.getElementById('uploadZone');
+    const loadingZone = document.getElementById('loadingZone');
     const previewZone = document.getElementById('previewZone');
     const imageControls = document.getElementById('imageControls');
+    const drawingToolbar = document.getElementById('drawingToolbar');
     const gradeBtn = document.getElementById('gradeBtn');
     const gradeBtnText = document.getElementById('gradeBtnText');
     const gradeIcon = document.getElementById('gradeIcon');
     const errorBox = document.getElementById('errorBox');
     const errorText = document.getElementById('errorText');
-    
     const resultsPanel = document.getElementById('resultsPanel');
-    const successBox = document.getElementById('successBox');
-    const successText = document.getElementById('successText');
-    const costDisplay = document.getElementById('costDisplay');
-    const costHkd = document.getElementById('costHkd');
-    const costTokens = document.getElementById('costTokens');
-    
-    const resultScore = document.getElementById('resultScore');
-    const resultComment = document.getElementById('resultComment');
     const annotationsListContainer = document.getElementById('annotationsListContainer');
     const annotationsList = document.getElementById('annotationsList');
-    const scoreMaxLabel = document.getElementById('scoreMaxLabel');
-
-    // 監聽滿分變更
-    document.getElementById('maxScore').addEventListener('input', (e) => {
-      scoreMaxLabel.textContent = `/ ${e.target.value || 100}`;
+    
+    // ---------------- 繪圖工具列事件 ----------------
+    const toolPen = document.getElementById('toolPen');
+    const toolEraser = document.getElementById('toolEraser');
+    const lineWidthInput = document.getElementById('lineWidth');
+    
+    toolPen.addEventListener('click', () => {
+      currentTool = 'pen';
+      toolPen.classList.replace('text-slate-500', 'text-indigo-700');
+      toolPen.classList.replace('hover:bg-slate-200', 'hover:bg-indigo-200');
+      toolPen.classList.add('bg-indigo-100');
+      
+      toolEraser.classList.replace('text-indigo-700', 'text-slate-500');
+      toolEraser.classList.replace('hover:bg-indigo-200', 'hover:bg-slate-200');
+      toolEraser.classList.remove('bg-indigo-100');
     });
 
-    // 檔案上傳相關事件
+    toolEraser.addEventListener('click', () => {
+      currentTool = 'eraser';
+      toolEraser.classList.replace('text-slate-500', 'text-indigo-700');
+      toolEraser.classList.replace('hover:bg-slate-200', 'hover:bg-indigo-200');
+      toolEraser.classList.add('bg-indigo-100');
+      
+      toolPen.classList.replace('text-indigo-700', 'text-slate-500');
+      toolPen.classList.replace('hover:bg-indigo-200', 'hover:bg-slate-200');
+      toolPen.classList.remove('bg-indigo-100');
+    });
+
+    document.querySelectorAll('.color-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        strokeColor = e.target.getAttribute('data-color');
+        document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('ring-2', 'ring-offset-1', 'ring-slate-400'));
+        e.target.classList.add('ring-2', 'ring-offset-1', 'ring-slate-400');
+        if (currentTool === 'eraser') toolPen.click(); // 自動切回畫筆
+      });
+    });
+
+    lineWidthInput.addEventListener('input', (e) => { strokeWidth = e.target.value; });
+
+    document.getElementById('clearCanvasBtn').addEventListener('click', () => {
+      drawingCanvases.forEach(c => {
+        c.ctx.clearRect(0, 0, c.canvas.width, c.canvas.height);
+      });
+    });
+
+    // ---------------- 檔案處理 (含 PDF) ----------------
+    document.getElementById('maxScore').addEventListener('input', (e) => {
+      document.getElementById('scoreMaxLabel').textContent = `/ ${e.target.value || 100}`;
+    });
+
     uploadZone.addEventListener('click', () => fileInput.click());
     document.getElementById('addMoreBtn').addEventListener('click', () => fileInput.click());
     document.getElementById('clearAllBtn').addEventListener('click', clearImages);
 
-    uploadZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      uploadZone.classList.add('bg-slate-50', 'border-indigo-300');
-    });
-    uploadZone.addEventListener('dragleave', () => {
-      uploadZone.classList.remove('bg-slate-50', 'border-indigo-300');
-    });
+    uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('bg-slate-50', 'border-indigo-300'); });
+    uploadZone.addEventListener('dragleave', () => { uploadZone.classList.remove('bg-slate-50', 'border-indigo-300'); });
     uploadZone.addEventListener('drop', (e) => {
       e.preventDefault();
       uploadZone.classList.remove('bg-slate-50', 'border-indigo-300');
@@ -264,28 +419,63 @@
 
     fileInput.addEventListener('change', (e) => {
       processFiles(Array.from(e.target.files));
-      fileInput.value = ''; // 允許重複上傳相同檔案
+      fileInput.value = ''; 
     });
 
-    function processFiles(files) {
-      const validFiles = files.filter(f => f.type.startsWith('image/'));
+    async function processFiles(files) {
+      const validFiles = files.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf');
       if (validFiles.length === 0) return;
       
       hideError();
-      let loadedCount = 0;
+      uploadZone.classList.add('hidden');
+      loadingZone.classList.remove('hidden');
+      loadingZone.classList.add('flex');
+      
+      for (const file of validFiles) {
+        if (file.type === 'application/pdf') {
+          await processPDF(file);
+        } else {
+          await processImage(file);
+        }
+      }
+      
+      loadingZone.classList.add('hidden');
+      loadingZone.classList.remove('flex');
+      updateImageUI();
+    }
 
-      validFiles.forEach(file => {
+    function processImage(file) {
+      return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => {
-          imagePreviews.push(reader.result);
-          loadedCount++;
-          if (loadedCount === validFiles.length) {
-            updateImageUI();
-          }
+          const img = new Image();
+          img.onload = () => {
+            imagePreviews.push({ dataUrl: reader.result, width: img.naturalWidth, height: img.naturalHeight });
+            resolve();
+          };
+          img.src = reader.result;
         };
         reader.readAsDataURL(file);
       });
-      resetResults();
+    }
+
+    async function processPDF(file) {
+      const fileData = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: fileData }).promise;
+      const numPages = pdf.numPages;
+      
+      for (let i = 1; i <= numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2.0 }); // 提高解析度
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        imagePreviews.push({ dataUrl, width: canvas.width, height: canvas.height });
+      }
     }
 
     function clearImages() {
@@ -301,6 +491,8 @@
         previewZone.classList.add('hidden');
         previewZone.classList.remove('flex');
         imageControls.classList.add('hidden');
+        drawingToolbar.classList.add('hidden');
+        drawingToolbar.classList.remove('flex');
         
         gradeBtn.classList.add('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
         gradeBtn.classList.remove('bg-indigo-600', 'text-white', 'hover:bg-indigo-700', 'hover:shadow-md');
@@ -311,6 +503,8 @@
         previewZone.classList.remove('hidden');
         previewZone.classList.add('flex');
         imageControls.classList.remove('hidden');
+        drawingToolbar.classList.remove('hidden');
+        drawingToolbar.classList.add('flex');
         
         gradeBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed');
         gradeBtn.classList.add('bg-indigo-600', 'text-white', 'hover:bg-indigo-700', 'hover:shadow-md');
@@ -321,26 +515,43 @@
     }
 
     function renderPreviewImages() {
-      previewZone.innerHTML = ''; // 清空
+      previewZone.innerHTML = ''; 
+      drawingCanvases = [];
+      const dict = translations[currentLang];
       
-      imagePreviews.forEach((url, imgIdx) => {
+      imagePreviews.forEach((imgData, imgIdx) => {
         const container = document.createElement('div');
-        container.className = 'relative inline-flex flex-col max-w-full shadow-md bg-white';
+        container.className = 'relative inline-flex flex-col max-w-full shadow-md bg-white select-none';
         
         // 圖片序號標籤
         const badge = document.createElement('div');
-        badge.className = 'absolute top-2 left-2 bg-slate-900/70 text-white text-xs px-2 py-1 rounded shadow-sm z-10';
-        badge.textContent = `第 ${imgIdx + 1} 張`;
+        badge.className = 'page-badge absolute top-2 left-2 bg-slate-900/70 text-white text-xs px-2 py-1 rounded shadow-sm z-30 pointer-events-none';
+        badge.textContent = `${dict.pagePrefix} ${imgIdx + 1} ${dict.pageSuffix}`.trim();
         container.appendChild(badge);
 
         // 圖片本體
         const img = document.createElement('img');
-        img.src = url;
-        img.className = 'block max-w-full h-auto';
-        img.style.maxHeight = '600px';
+        img.src = imgData.dataUrl;
+        img.className = 'block max-w-full h-auto pointer-events-none';
+        img.style.maxHeight = '800px'; 
         container.appendChild(img);
 
-        // 繪製對應的標註框
+        // 繪圖 Canvas
+        const canvas = document.createElement('canvas');
+        canvas.className = 'drawing-canvas absolute top-0 left-0 w-full h-full z-20 cursor-crosshair';
+        container.appendChild(canvas);
+
+        // 初始化 Canvas 繪圖邏輯
+        img.onload = () => {
+          // 內部解析度對齊圖片實際大小，確保畫質
+          canvas.width = img.clientWidth;
+          canvas.height = img.clientHeight;
+          setupDrawing(canvas, img.clientWidth, img.clientHeight);
+        };
+
+        // 繪製對應的 AI 標註框 (z-index 要比 canvas 高，或者可以點擊穿透)
+        // 為了讓繪圖不被 AI 框阻擋，我們讓 AI 框 pointer-events: none，但 Tooltip 需觸發？
+        // 解決：AI 框容器 pointer-events: none，但 hover 觸發依賴整體結構，這裡直接將 AI 框放在最上層但不攔截點擊。
         annotations.forEach((ann, annIdx) => {
           const targetImageIdx = ann.image_index !== undefined ? ann.image_index : 0;
           if (targetImageIdx !== imgIdx || !ann.box_2d) return;
@@ -353,9 +564,7 @@
             xmin = ann.box_2d.xmin ?? ann.box_2d.left ?? 0;
             ymax = ann.box_2d.ymax ?? ann.box_2d.bottom ?? 0;
             xmax = ann.box_2d.xmax ?? ann.box_2d.right ?? 0;
-          } else {
-            return;
-          }
+          } else return;
 
           if (xmin > xmax) { const temp = xmin; xmin = xmax; xmax = temp; }
           if (ymin > ymax) { const temp = ymin; ymin = ymax; ymax = temp; }
@@ -366,21 +575,18 @@
           const width = `${Math.max(0, Math.min(100, (xmax - xmin) / 10))}%`;
 
           const box = document.createElement('div');
-          box.className = 'absolute border-2 border-red-500 bg-red-500/20 rounded-sm group hover:bg-red-500/40 transition-all cursor-pointer';
+          // pointer-events-none 讓畫筆可以穿透，但 group-hover 仍能被容器捕獲嗎？
+          // 我們讓框的邊界不攔截鼠標，將 Tooltip 改為在列表編輯區查看更穩定，或者只保留顯示。
+          box.className = 'absolute border-2 border-red-500 bg-red-500/10 rounded-sm z-10 pointer-events-none';
           box.style.top = top;
           box.style.left = left;
           box.style.width = width;
           box.style.height = height;
 
           const numBadge = document.createElement('div');
-          numBadge.className = 'absolute -top-3 -left-3 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-md z-10 group-hover:scale-110 transition-transform';
+          numBadge.className = 'absolute -top-3 -left-3 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-md';
           numBadge.textContent = annIdx + 1;
           box.appendChild(numBadge);
-
-          const tooltip = document.createElement('div');
-          tooltip.className = 'absolute left-full top-0 ml-2 w-48 p-2 bg-slate-900/90 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20';
-          tooltip.textContent = ann.comment;
-          box.appendChild(tooltip);
 
           container.appendChild(box);
         });
@@ -389,35 +595,103 @@
       });
     }
 
+    // Canvas 繪圖設定函數
+    function setupDrawing(canvas, cWidth, cHeight) {
+      const ctx = canvas.getContext('2d');
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      drawingCanvases.push({ canvas, ctx });
+
+      let isDrawing = false;
+      let lastX = 0;
+      let lastY = 0;
+
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        }
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY
+        };
+      };
+
+      const startDrawing = (e) => {
+        isDrawing = true;
+        const pos = getPos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+        
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(lastX, lastY); // 點擊即畫點
+        ctx.strokeStyle = currentTool === 'eraser' ? 'rgba(0,0,0,1)' : strokeColor;
+        ctx.globalCompositeOperation = currentTool === 'eraser' ? 'destination-out' : 'source-over';
+        ctx.lineWidth = currentTool === 'eraser' ? strokeWidth * 5 : strokeWidth;
+        ctx.stroke();
+        e.preventDefault();
+      };
+
+      const draw = (e) => {
+        if (!isDrawing) return;
+        const pos = getPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        lastX = pos.x;
+        lastY = pos.y;
+        e.preventDefault();
+      };
+
+      const stopDrawing = () => {
+        if (isDrawing) {
+          ctx.closePath();
+          isDrawing = false;
+        }
+      };
+
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDrawing);
+      canvas.addEventListener('mouseout', stopDrawing);
+
+      // 觸控支援 (iPad 等設備)
+      canvas.addEventListener('touchstart', startDrawing, {passive: false});
+      canvas.addEventListener('touchmove', draw, {passive: false});
+      canvas.addEventListener('touchend', stopDrawing);
+    }
+
+    // ---------------- 批改邏輯 ----------------
     function resetResults() {
       annotations = [];
-      resultScore.value = '';
-      resultComment.value = '';
-      costDisplay.classList.add('hidden');
-      costDisplay.classList.remove('flex');
+      document.getElementById('resultScore').value = '';
+      document.getElementById('resultComment').value = '';
+      document.getElementById('costDisplay').classList.add('hidden');
+      document.getElementById('costDisplay').classList.remove('flex');
       
       resultsPanel.classList.add('hidden', 'opacity-0', 'translate-y-4');
       resultsPanel.classList.remove('block', 'opacity-100', 'translate-y-0');
       
-      renderPreviewImages(); // 重新渲染清除標註
+      renderPreviewImages(); // 重繪以清除舊的 AI 標註，保留手繪圖層 (透過 clearImages 才是真清空)
     }
 
-    function showError(msg) {
-      errorText.textContent = msg;
+    function showError(key) {
+      errorText.textContent = translations[currentLang][key] || key;
       errorBox.classList.remove('hidden');
     }
-
-    function hideError() {
-      errorBox.classList.add('hidden');
+    function hideError() { errorBox.classList.add('hidden'); }
+    function showSuccess(key) {
+      document.getElementById('successText').textContent = translations[currentLang][key];
+      document.getElementById('successBox').classList.remove('hidden');
+      setTimeout(() => { document.getElementById('successBox').classList.add('hidden'); }, 4000);
     }
 
-    function showSuccess(msg) {
-      successText.textContent = msg;
-      successBox.classList.remove('hidden');
-      setTimeout(() => { successBox.classList.add('hidden'); }, 4000);
-    }
-
-    // 呼叫 API
     gradeBtn.addEventListener('click', async () => {
       const apiKey = document.getElementById('apiKey').value.trim();
       const subject = document.getElementById('subject').value.trim();
@@ -425,93 +699,151 @@
       const maxScore = document.getElementById('maxScore').value.trim();
       const markingScheme = document.getElementById('markingScheme').value.trim();
 
-      if (!apiKey) return showError('請輸入 API Key。');
-      if (imagePreviews.length === 0) return showError('請先上傳學生的作業圖片。');
+      if (!apiKey) return showError('alertNoKey');
+      if (imagePreviews.length === 0) return showError('alertNoImg');
 
-      // 設定 UI 為 Loading 狀態
       isGrading = true;
       hideError();
-      resetResults();
+      applyLanguage(); // 更新 Loading 文字
+      
+      // 注意：我們需要將目前手繪的 Canvas 與底圖合併傳給 AI，或只傳底圖？
+      // 這裡選擇只傳底圖(imagePreviews的原始dataUrl)，AI 批改原稿。
       
       gradeBtn.disabled = true;
       gradeBtn.classList.add('bg-slate-200', 'text-slate-500');
       gradeBtn.classList.remove('bg-indigo-600', 'text-white', 'hover:bg-indigo-700');
       gradeIcon.setAttribute('data-lucide', 'loader-2');
       gradeIcon.classList.add('animate-spin');
-      gradeBtnText.textContent = 'AI 批改及定位中...';
       lucide.createIcons();
 
       try {
-        const promptText = `
-你是一個專業且嚴謹的老師，請根據以下資料批改這份學生的作業圖片（共 ${imagePreviews.length} 張）。
+        const promptTextEn = `You are a professional teacher. Grade the student's work images (total ${imagePreviews.length} pages).
+Subject: ${subject || 'Not specified'}
+Grade/Form: ${grade || 'Not specified'}
+Max Score: ${maxScore || '100'}
+Marking Scheme:\n${markingScheme || 'No specific scheme provided, use general academic knowledge.'}
+
+Analyze the answers, compare with the marking scheme, give a reasonable score, and provide a general comment.
+MOST IMPORTANTLY: Find the locations of errors or areas needing improvement, and provide bounding box coordinates.
+Format MUST be JSON Object (values 0-1000 representing per mille of width/height, top-left is 0,0):
+"box_2d": {"ymin": top_y, "xmin": left_x, "ymax": bottom_y, "xmax": right_x}
+
+Your reply MUST be pure JSON format, without markdown, like this:
+{
+  "score": "Number or string of final score",
+  "general_comment": "Your detailed general comment here",
+  "annotations": [
+    {
+      "image_index": 0,
+      "box_2d": { "ymin": 100, "xmin": 200, "ymax": 150, "xmax": 300 },
+      "comment": "Specific comment for this error"
+    }
+  ]
+}`;
+
+        const promptTextZh = `你是一個專業且嚴謹的老師，請根據以下資料批改這份學生的作業圖片（共 ${imagePreviews.length} 張）。
 科目：${subject || '未指定'}
 年級：${grade || '未指定'}
 滿分：${maxScore || '100'}
 評分標準 (Marking Scheme)：\n${markingScheme || '無提供具體標準，請根據一般學科知識進行合理批改。'}
 
-請仔細分析圖片中的學生作答內容，對照評分標準，給予合理的分數，並提供整體評語。
-最重要的是：請找出學生「出錯的位置」（或需要給予特別指導的地方），並提供該位置的 bounding box 座標。
-為了徹底避免座標軸顛倒，請使用 JSON 物件輸出，數值範圍必須是 0 到 1000 的整數（代表佔整張圖片寬高的千分比，左上角為 0, 0，右下角為 1000, 1000）：
-"box_2d": {
-  "ymin": "框的上方邊緣 Y 座標",
-  "xmin": "框的左側邊緣 X 座標",
-  "ymax": "框的下方邊緣 Y 座標",
-  "xmax": "框的右側邊緣 X 座標"
-}
+請仔細分析圖片作答內容，對照評分標準，給予合理分數並提供整體評語。
+最重要的是：找出學生「出錯的位置」，並提供 bounding box 座標。
+請使用 JSON 物件輸出，數值範圍 0 到 1000 的整數（代表佔寬高千分比，左上為 0, 0）：
+"box_2d": {"ymin": 框的上方邊緣Y, "xmin": 左側X, "ymax": 下方Y, "xmax": 右側X}
 
-你的回覆必須是純 JSON 格式，不要包含任何其他文字或 Markdown 標記，格式如下：
+你的回覆必須是純 JSON 格式，不要 Markdown：
 {
-  "score": "數值或字串，表示學生的得分",
-  "general_comment": "字串，表示你的整體詳細評語",
+  "score": "學生的得分",
+  "general_comment": "整體詳細評語",
   "annotations": [
     {
       "image_index": 0,
       "box_2d": { "ymin": 100, "xmin": 200, "ymax": 150, "xmax": 300 },
-      "comment": "針對這個錯誤位置的具體評語（指出為何錯、如何改正）"
+      "comment": "針對這個錯誤位置的具體評語"
     }
   ]
-}
-如果學生完全沒有錯誤，annotations 請保留為空陣列 []。
-`;
+}`;
 
         const contentArray = [
-          { type: "text", text: promptText },
-          ...imagePreviews.map(url => ({ type: "image_url", image_url: { url } }))
+          { type: "text", text: currentLang === 'en' ? promptTextEn : promptTextZh },
+          ...imagePreviews.map(img => ({ type: "image_url", image_url: { url: img.dataUrl } }))
         ];
 
         const payload = {
           model: "qwen-vl-max",
           messages: [{ role: "user", content: contentArray }],
           temperature: 0.1,
+          stream: true,
+          stream_options: { include_usage: true }
         };
 
         const response = await fetch('https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'text/event-stream'
           },
           body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `API 請求失敗 (狀態碼: ${response.status})`);
+          throw new Error(errData.error?.message || `API Error (${response.status})`);
         }
 
-        const data = await response.json();
-        const content = data.choices[0].message.content;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let content = "";
+        let buffer = "";
 
-        // 計算成本
-        if (data.usage) {
-          const inTokens = data.usage.prompt_tokens || 0;
-          const outTokens = data.usage.completion_tokens || 0;
-          const hkd = ((inTokens / 1000) * 0.003 + (outTokens / 1000) * 0.009) * 1.08;
+        // UI 準備顯示實時成本計算
+        document.getElementById('costDisplay').classList.remove('hidden');
+        document.getElementById('costDisplay').classList.add('flex');
+        document.getElementById('costHkd').textContent = `計算中...`;
+        document.getElementById('costTokens').textContent = `(讀取 API 串流中...)`;
+        
+        // 提前顯示結果面板以供觀看進度
+        resultsPanel.classList.remove('hidden');
+        resultsPanel.classList.remove('opacity-0', 'translate-y-4');
+        resultsPanel.classList.add('opacity-100', 'translate-y-0');
+
+        // 讀取串流數據
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
           
-          costHkd.textContent = hkd.toFixed(4);
-          costTokens.textContent = `(使用 ${inTokens} + ${outTokens} Tokens)`;
-          costDisplay.classList.remove('hidden');
-          costDisplay.classList.add('flex');
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // 保留最後一行不完整的片段
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
+              try {
+                const data = JSON.parse(trimmed.substring(6));
+                
+                if (data.choices && data.choices.length > 0 && data.choices[0].delta && data.choices[0].delta.content) {
+                  content += data.choices[0].delta.content;
+                }
+                
+                // 實時更新真實 Token 使用量與費用
+                if (data.usage) {
+                  const inTokens = data.usage.prompt_tokens || 0;
+                  const outTokens = data.usage.completion_tokens || 0;
+                  // 根據費率計算 (千 tokens 價格)
+                  const rmbCost = (inTokens / 1000) * 0.003 + (outTokens / 1000) * 0.009;
+                  const hkd = rmbCost * currentExchangeRate;
+                  
+                  document.getElementById('costHkd').textContent = `HK$ ${hkd.toFixed(4)}`;
+                  document.getElementById('costTokens').textContent = `(輸入: ${inTokens}, 輸出: ${outTokens} Tokens | ¥${rmbCost.toFixed(4)})`;
+                }
+              } catch (e) {
+                // 忽略不完整 JSON 解析錯誤
+              }
+            }
+          }
         }
 
         let parsedResult;
@@ -519,18 +851,18 @@
           const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
           parsedResult = JSON.parse(cleaned);
         } catch (e) {
-          throw new Error("AI 回覆格式非標準 JSON，無法解析。原始內容：\n" + content);
+          throw new Error("Invalid JSON format from AI.\n" + content);
         }
 
-        resultScore.value = parsedResult.score || '';
-        resultComment.value = parsedResult.general_comment || parsedResult.comment || '';
+        document.getElementById('resultScore').value = parsedResult.score || '';
+        document.getElementById('resultComment').value = parsedResult.general_comment || parsedResult.comment || '';
         annotations = Array.isArray(parsedResult.annotations) ? parsedResult.annotations : [];
         
-        showSuccess('AI 批改完成！錯誤已在圖上標出，您可以編輯結果。');
+        showSuccess('alertSuccess');
         renderResultsUI();
 
       } catch (err) {
-        showError(err.message || '發生未知錯誤');
+        showError(err.message);
       } finally {
         isGrading = false;
         gradeBtn.disabled = false;
@@ -538,27 +870,63 @@
         gradeBtn.classList.add('bg-indigo-600', 'text-white', 'hover:bg-indigo-700');
         gradeIcon.setAttribute('data-lucide', 'bot');
         gradeIcon.classList.remove('animate-spin');
-        gradeBtnText.textContent = '開始 AI 批改與錯誤標註';
+        applyLanguage(); // 回復原按鈕文字
         lucide.createIcons();
       }
     });
 
     function renderResultsUI() {
-      // 顯示面板
       resultsPanel.classList.remove('hidden');
       setTimeout(() => {
         resultsPanel.classList.remove('opacity-0', 'translate-y-4');
         resultsPanel.classList.add('opacity-100', 'translate-y-0');
       }, 50);
 
-      // 渲染圖片框線
-      renderPreviewImages();
+      // 我們只需重繪 AI 框，但這會銷毀 Canvas！
+      // 為保留使用者的手繪筆跡，我們這裡不呼叫 renderPreviewImages()，
+      // 而是動態附加 AI 框的 DIV 到目前的 Container 中。
+      // 先清空舊的框
+      document.querySelectorAll('.border-red-500.bg-red-500\\/10').forEach(el => el.remove());
+      
+      const containers = previewZone.children;
+      annotations.forEach((ann, annIdx) => {
+        const targetImageIdx = ann.image_index !== undefined ? ann.image_index : 0;
+        if (targetImageIdx >= containers.length || !ann.box_2d) return;
+
+        let ymin, xmin, ymax, xmax;
+        if (Array.isArray(ann.box_2d) && ann.box_2d.length === 4) {
+          [ymin, xmin, ymax, xmax] = ann.box_2d;
+        } else if (typeof ann.box_2d === 'object') {
+          ymin = ann.box_2d.ymin ?? ann.box_2d.top ?? 0; xmin = ann.box_2d.xmin ?? ann.box_2d.left ?? 0;
+          ymax = ann.box_2d.ymax ?? ann.box_2d.bottom ?? 0; xmax = ann.box_2d.xmax ?? ann.box_2d.right ?? 0;
+        } else return;
+
+        if (xmin > xmax) { const temp = xmin; xmin = xmax; xmax = temp; }
+        if (ymin > ymax) { const temp = ymin; ymin = ymax; ymax = temp; }
+
+        const top = `${Math.max(0, Math.min(100, ymin / 10))}%`;
+        const left = `${Math.max(0, Math.min(100, xmin / 10))}%`;
+        const height = `${Math.max(0, Math.min(100, (ymax - ymin) / 10))}%`;
+        const width = `${Math.max(0, Math.min(100, (xmax - xmin) / 10))}%`;
+
+        const box = document.createElement('div');
+        box.className = 'absolute border-2 border-red-500 bg-red-500/10 rounded-sm z-10 pointer-events-none';
+        box.style.top = top; box.style.left = left; box.style.width = width; box.style.height = height;
+
+        const numBadge = document.createElement('div');
+        numBadge.className = 'absolute -top-3 -left-3 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-md';
+        numBadge.textContent = annIdx + 1;
+        box.appendChild(numBadge);
+
+        containers[targetImageIdx].appendChild(box);
+      });
 
       // 渲染編輯明細列表
       if (annotations.length > 0) {
         annotationsListContainer.classList.remove('hidden');
         annotationsList.innerHTML = '';
         
+        const dict = translations[currentLang];
         annotations.forEach((ann, idx) => {
           const itemDiv = document.createElement('div');
           itemDiv.className = 'flex items-start space-x-3 bg-red-50/50 p-3 rounded-xl border border-red-100';
@@ -573,7 +941,7 @@
           if (imagePreviews.length > 1) {
             const imgLabel = document.createElement('span');
             imgLabel.className = 'text-xs font-medium text-red-800 bg-red-200 self-start px-2 py-0.5 rounded';
-            imgLabel.textContent = `第 ${(ann.image_index !== undefined ? ann.image_index : 0) + 1} 張圖片`;
+            imgLabel.textContent = `${dict.pagePrefix} ${(ann.image_index !== undefined ? ann.image_index : 0) + 1} ${dict.pageSuffix}`.trim();
             contentDiv.appendChild(imgLabel);
           }
           
@@ -581,12 +949,7 @@
           textarea.rows = 2;
           textarea.value = ann.comment;
           textarea.className = 'w-full px-3 py-2 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none resize-y text-sm text-slate-700 bg-white';
-          
-          // 即時更新綁定的資料並重繪圖層 (以更新 tooltip)
-          textarea.addEventListener('input', (e) => {
-            annotations[idx].comment = e.target.value;
-            renderPreviewImages(); 
-          });
+          textarea.addEventListener('input', (e) => { annotations[idx].comment = e.target.value; });
 
           contentDiv.appendChild(textarea);
           itemDiv.appendChild(numBadge);
@@ -598,10 +961,29 @@
       }
     }
 
-    // 儲存按鈕
-    document.getElementById('saveBtn').addEventListener('click', () => {
-      showSuccess('批改結果已儲存！');
-    });
+    document.getElementById('saveBtn').addEventListener('click', () => { showSuccess('alertSaveSuccess'); });
+
+    // 初始化執行一次翻譯
+    applyLanguage();
+
+    // ---------------- 實時匯率獲取 ----------------
+    let currentExchangeRate = 1.08; // 預設 CNY 到 HKD 匯率
+
+    async function fetchLiveExchangeRate() {
+      try {
+        const res = await fetch('https://open.er-api.com/v6/latest/CNY');
+        const data = await res.json();
+        if (data && data.rates && data.rates.HKD) {
+          currentExchangeRate = data.rates.HKD;
+          document.getElementById('exchangeRateDisplay').textContent = `實時匯率: 1 RMB ≈ ${currentExchangeRate.toFixed(4)} HKD`;
+        }
+      } catch(e) {
+        document.getElementById('exchangeRateDisplay').textContent = `預設匯率: 1 RMB ≈ 1.08 HKD`;
+        console.warn('無法取得實時匯率，使用預設值。', e);
+      }
+    }
+    
+    fetchLiveExchangeRate();
 
   </script>
 </body>
