@@ -56,26 +56,47 @@
           </div>
         </div>
 
-        <form id="generate-form" class="flex-1 w-full lg:max-w-2xl flex gap-2">
-          <div class="relative flex-1">
-            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
-            <input
-              type="text"
-              id="topic-input"
-              value="量子電腦的原理與應用"
-              placeholder="輸入任何主題... (例如：第二次世界大戰、區塊鏈技術、如何學習寫程式)"
-              class="w-full pl-10 pr-4 py-2.5 bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 rounded-xl transition-all shadow-inner outline-none text-slate-700"
-            />
+        <form id="generate-form" class="flex-1 w-full lg:max-w-2xl flex flex-col gap-2 relative">
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
+              <input
+                type="text"
+                id="topic-input"
+                value="量子電腦的原理與應用"
+                placeholder="輸入任何主題... (例如：第二次世界大戰、區塊鏈技術)"
+                class="w-full pl-10 pr-4 py-2.5 bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 rounded-xl transition-all shadow-inner outline-none text-slate-700"
+              />
+            </div>
+            
+            <!-- 進階設定按鈕 -->
+            <button type="button" id="toggle-advanced-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 rounded-xl transition-colors flex items-center justify-center border border-transparent hover:border-slate-300" title="進階設定">
+              <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+            </button>
+
+            <button
+              type="submit"
+              id="generate-btn"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm shrink-0"
+            >
+              <i data-lucide="sparkles" id="btn-icon-normal" class="w-5 h-5"></i>
+              <i data-lucide="loader-2" id="btn-icon-loading" class="w-5 h-5 animate-spin hidden"></i>
+              <span id="btn-text">生成</span>
+            </button>
           </div>
-          <button
-            type="submit"
-            id="generate-btn"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-sm"
-          >
-            <i data-lucide="sparkles" id="btn-icon-normal" class="w-5 h-5"></i>
-            <i data-lucide="loader-2" id="btn-icon-loading" class="w-5 h-5 animate-spin hidden"></i>
-            <span id="btn-text">生成</span>
-          </button>
+
+          <!-- 進階設定面板 -->
+          <div id="advanced-panel" class="hidden flex-col gap-4 p-4 bg-white border border-slate-200 rounded-xl shadow-lg absolute top-full left-0 right-0 mt-2 z-50">
+            <div>
+              <label id="lbl-custom-req" class="block text-sm font-medium text-slate-700 mb-1">附加生成要求 (選填)</label>
+              <textarea id="custom-req-input" rows="2" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm text-slate-700 transition-all resize-none" placeholder="例如：請著重在經濟方面的影響、使用專業術語..."></textarea>
+            </div>
+            <div>
+              <label id="lbl-file-upload" class="block text-sm font-medium text-slate-700 mb-1">上傳參考文件 (支援 TXT, MD, CSV)</label>
+              <input type="file" id="file-input" accept=".txt,.md,.csv,.json" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-all cursor-pointer"/>
+              <p id="file-status" class="text-xs text-slate-400 mt-1 hidden"></p>
+            </div>
+          </div>
         </form>
       </div>
     </div>
@@ -90,9 +111,24 @@
 
     <!-- Toolbar -->
     <div class="absolute bottom-6 right-6 z-20 flex gap-2 bg-white/90 backdrop-blur shadow-lg p-2 rounded-xl border border-slate-200">
-      <button id="download-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="下載為圖片">
-        <i data-lucide="download" class="w-5 h-5"></i>
-      </button>
+      <!-- 匯出選單容器 -->
+      <div class="relative" id="export-container">
+        <button id="download-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="匯出/下載">
+          <i data-lucide="download" class="w-5 h-5"></i>
+        </button>
+        <!-- 匯出下拉選單 -->
+        <div id="export-menu" class="hidden absolute bottom-full right-0 mb-2 w-36 bg-white border border-slate-200 rounded-xl shadow-lg flex-col overflow-hidden origin-bottom-right">
+          <button id="export-png-btn" class="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2">
+            <i data-lucide="image" class="w-4 h-4"></i><span id="txt-exp-png">圖片 (.png)</span>
+          </button>
+          <button id="export-md-btn" class="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2 border-t border-slate-100">
+            <i data-lucide="file-text" class="w-4 h-4"></i><span id="txt-exp-md">Markdown</span>
+          </button>
+          <button id="export-json-btn" class="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center gap-2 border-t border-slate-100">
+            <i data-lucide="file-code" class="w-4 h-4"></i><span id="txt-exp-json">JSON</span>
+          </button>
+        </div>
+      </div>
       <div class="w-px h-auto bg-slate-200 my-1"></div>
       <button id="zoom-out-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="縮小">
         <i data-lucide="zoom-out" class="w-5 h-5"></i>
@@ -152,7 +188,7 @@
         guide2: '<span class="font-medium text-indigo-600">滑鼠移至節點</span>可新增或刪除',
         guide3: '拖曳背景可平移畫布',
         guide4: 'Ctrl + 滾輪可縮放畫布',
-        ttDownload: '下載為圖片',
+        ttDownload: '匯出 / 下載',
         ttZoomOut: '縮小',
         ttReset: '置中重置',
         ttZoomIn: '放大',
@@ -160,18 +196,30 @@
         ttDeleteNode: '刪除節點',
         newNodeText: '新節點',
         unnamedNode: '未命名',
+        expPng: '圖片 (.png)',
+        expMd: 'Markdown',
+        expJson: 'JSON',
         errNoKey: '請先在上方輸入您的 Qwen API Key',
         errKeyFormat: '提示：DashScope API Key 通常以 \'sk-\' 開頭，請確認您輸入的不是 AccessKey ID。',
         errApiNoText: '無效的 API 回應 (查無文本)',
         errApiJson: 'API 返回的 JSON 格式不符合預期',
         errApiFail: '生成心智圖時發生錯誤，請檢查 API Key 或稍後再試。',
         errDownload: '下載圖片失敗，請稍後再試。',
+        errFileTooLarge: '文件過大，請上傳小於 1MB 的純文本檔案。',
+        errFileRead: '讀取文件失敗。',
         statsTokens: 'Token 消耗: {total} (輸入: {in} / 輸出: {out})',
         statsCost: '預估成本: ~HK${cost}',
+        lblCustomReq: '附加生成要求 (選填)',
+        lblFileUpload: '上傳參考文件 (支援 TXT, MD, CSV)',
+        phCustomReq: '例如：請著重在經濟方面的影響、使用專業術語...',
+        ttAdvanced: '進階設定',
+        fileLoaded: '已載入文件：{name}',
         promptSystem: '你是一個專業的知識圖譜與心智圖專家。請嚴格輸出 JSON 格式。',
-        promptTpl: (topic) => `
+        promptTpl: (topic, customReq, refText) => `
           你是一個專業的知識圖譜與心智圖專家。
           請根據使用者輸入的主題：「${topic}」，生成一個結構清晰、內容豐富且具體的心智圖資料。
+          ${customReq ? `\n【使用者的特別要求】：\n${customReq}\n` : ''}
+          ${refText ? `\n【請參考以下提供的資料內容來提煉心智圖】：\n<reference_material>\n${refText}\n</reference_material>\n` : ''}
           
           請嚴格按照以下 JSON 結構輸出，不要包含任何額外的 Markdown 標記（如 \`\`\`json 等），直接輸出乾淨的 JSON 字串：
           {
@@ -202,7 +250,7 @@
         appTitle: 'AI Mindmap Gen',
         langBtn: '中',
         apiKeyPlaceholder: 'Enter Qwen API Key (sk-...)',
-        topicPlaceholder: 'Enter any topic... (e.g., WWII, Blockchain, Coding)',
+        topicPlaceholder: 'Enter any topic... (e.g., WWII, Blockchain)',
         btnGenerate: 'Generate',
         btnGenerating: 'Thinking...',
         guideTitle: 'Guide',
@@ -210,7 +258,7 @@
         guide2: '<span class="font-medium text-indigo-600">Hover node</span> to add/delete',
         guide3: 'Drag background to pan',
         guide4: 'Ctrl + Scroll to zoom',
-        ttDownload: 'Download Image',
+        ttDownload: 'Export / Download',
         ttZoomOut: 'Zoom Out',
         ttReset: 'Reset View',
         ttZoomIn: 'Zoom In',
@@ -218,18 +266,30 @@
         ttDeleteNode: 'Delete node',
         newNodeText: 'New Node',
         unnamedNode: 'Unnamed',
+        expPng: 'Image (.png)',
+        expMd: 'Markdown',
+        expJson: 'JSON',
         errNoKey: 'Please enter your Qwen API Key above.',
         errKeyFormat: 'Hint: DashScope API Keys usually start with "sk-".',
         errApiNoText: 'Invalid API response (no text found).',
         errApiJson: 'API returned unexpected JSON format.',
         errApiFail: 'Error generating mindmap. Check API Key or try again.',
         errDownload: 'Failed to download image. Try again later.',
+        errFileTooLarge: 'File too large. Please upload a text file under 1MB.',
+        errFileRead: 'Failed to read file.',
         statsTokens: 'Tokens: {total} (In: {in} / Out: {out})',
         statsCost: 'Est. Cost: ~HK${cost}',
+        lblCustomReq: 'Additional Requirements (Optional)',
+        lblFileUpload: 'Upload Reference File (TXT, MD, CSV)',
+        phCustomReq: 'e.g., Focus on economic impacts, use bullet points...',
+        ttAdvanced: 'Advanced Settings',
+        fileLoaded: 'Loaded file: {name}',
         promptSystem: 'You are a professional knowledge graph and mind map expert. Output strictly in JSON format.',
-        promptTpl: (topic) => `
+        promptTpl: (topic, customReq, refText) => `
           You are a professional knowledge graph and mind map expert.
           Generate a well-structured, rich, and specific mind map based on the user's topic: "${topic}".
+          ${customReq ? `\n[User's Custom Requirements]:\n${customReq}\n` : ''}
+          ${refText ? `\n[Reference Material to Extract From]:\n<reference_material>\n${refText}\n</reference_material>\n` : ''}
           
           Strictly output the following JSON structure without any additional Markdown tags (like \`\`\`json):
           {
@@ -313,6 +373,7 @@
     let dragStart = { x: 0, y: 0 };
     let isLoading = false;
     let currentStats = null; // 儲存當次生成的 token 資訊
+    let uploadedFileContent = ""; // 儲存上傳的文件內容
 
     // --- DOM Elements ---
     const canvas = document.getElementById('canvas');
@@ -330,6 +391,17 @@
     const statsContainer = document.getElementById('stats-container');
     const statsTokensEl = document.getElementById('stats-tokens');
     const statsCostEl = document.getElementById('stats-cost');
+
+    const toggleAdvancedBtn = document.getElementById('toggle-advanced-btn');
+    const advancedPanel = document.getElementById('advanced-panel');
+    const customReqInput = document.getElementById('custom-req-input');
+    const fileInput = document.getElementById('file-input');
+    const fileStatus = document.getElementById('file-status');
+    
+    const exportMenu = document.getElementById('export-menu');
+    const txtExpPng = document.getElementById('txt-exp-png');
+    const txtExpMd = document.getElementById('txt-exp-md');
+    const txtExpJson = document.getElementById('txt-exp-json');
 
     // --- Language Update Logic ---
     const updateStatsUI = () => {
@@ -364,6 +436,15 @@
       document.getElementById('zoom-out-btn').title = t.ttZoomOut;
       document.getElementById('reset-view-btn').title = t.ttReset;
       document.getElementById('zoom-in-btn').title = t.ttZoomIn;
+
+      document.getElementById('lbl-custom-req').textContent = t.lblCustomReq;
+      document.getElementById('lbl-file-upload').textContent = t.lblFileUpload;
+      customReqInput.placeholder = t.phCustomReq;
+      toggleAdvancedBtn.title = t.ttAdvanced;
+
+      txtExpPng.textContent = t.expPng;
+      txtExpMd.textContent = t.expMd;
+      txtExpJson.textContent = t.expJson;
 
       if (currentStats) updateStatsUI();
 
@@ -567,6 +648,8 @@
       isLoading = loading;
       topicInput.disabled = loading;
       generateBtn.disabled = loading;
+      customReqInput.disabled = loading;
+      fileInput.disabled = loading;
       
       if (loading) {
         btnIconNormal.classList.add('hidden');
@@ -619,8 +702,77 @@
     document.getElementById('zoom-out-btn').addEventListener('click', () => handleZoom(-0.2));
     document.getElementById('reset-view-btn').addEventListener('click', resetView);
 
-    // 下載按鈕邏輯
-    document.getElementById('download-btn').addEventListener('click', async () => {
+    // 進階設定面板切換
+    toggleAdvancedBtn.addEventListener('click', () => {
+      advancedPanel.classList.toggle('hidden');
+      advancedPanel.classList.toggle('flex');
+    });
+
+    // 匯出選單切換
+    document.getElementById('download-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportMenu.classList.toggle('hidden');
+      exportMenu.classList.toggle('flex');
+    });
+
+    // 點擊外部時自動關閉下拉面板
+    document.addEventListener('click', (e) => {
+      // 關閉進階面板
+      if (!advancedPanel.contains(e.target) && !toggleAdvancedBtn.contains(e.target) && !advancedPanel.classList.contains('hidden')) {
+        advancedPanel.classList.add('hidden');
+        advancedPanel.classList.remove('flex');
+      }
+      
+      // 關閉匯出選單
+      if (!exportMenu.contains(e.target) && e.target.closest('#download-btn') === null && !exportMenu.classList.contains('hidden')) {
+        exportMenu.classList.add('hidden');
+        exportMenu.classList.remove('flex');
+      }
+    });
+
+    // 處理檔案上傳
+    fileInput.addEventListener('change', (e) => {
+      const t = i18n[currentLang];
+      const file = e.target.files[0];
+      
+      if (!file) {
+        uploadedFileContent = "";
+        fileStatus.classList.add('hidden');
+        return;
+      }
+
+      // 檢查檔案大小 (限制 1MB，避免 Payload 過大)
+      if (file.size > 1024 * 1024) {
+        showError(t.errFileTooLarge);
+        e.target.value = '';
+        uploadedFileContent = "";
+        fileStatus.classList.add('hidden');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        uploadedFileContent = evt.target.result;
+        fileStatus.textContent = t.fileLoaded.replace('{name}', file.name);
+        fileStatus.classList.remove('hidden');
+        fileStatus.classList.remove('text-red-500');
+        fileStatus.classList.add('text-indigo-600');
+      };
+      reader.onerror = () => {
+        showError(t.errFileRead);
+        fileStatus.textContent = t.errFileRead;
+        fileStatus.classList.remove('hidden');
+        fileStatus.classList.add('text-red-500');
+        fileStatus.classList.remove('text-indigo-600');
+      };
+      reader.readAsText(file);
+    });
+
+    // --- 匯出功能邏輯 ---
+    // 1. 下載為 PNG 圖片
+    document.getElementById('export-png-btn').addEventListener('click', async () => {
+      exportMenu.classList.add('hidden');
+      exportMenu.classList.remove('flex');
       const downloadBtn = document.getElementById('download-btn');
       const originalHTML = downloadBtn.innerHTML;
       
@@ -657,6 +809,44 @@
         downloadBtn.innerHTML = originalHTML;
         lucide.createIcons();
       }
+    });
+
+    // 2. 下載為 Markdown
+    document.getElementById('export-md-btn').addEventListener('click', () => {
+      exportMenu.classList.add('hidden');
+      exportMenu.classList.remove('flex');
+      
+      const generateMD = (node, level) => {
+        let md = `${"  ".repeat(level)}- ${node.name}\n`;
+        if (node.children) {
+          node.children.forEach(child => {
+            md += generateMD(child, level + 1);
+          });
+        }
+        return md;
+      };
+
+      const mdContent = generateMD(mindmapData, 0);
+      const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${mindmapData.name || 'AI_心智圖'}.md`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    // 3. 下載為 JSON
+    document.getElementById('export-json-btn').addEventListener('click', () => {
+      exportMenu.classList.add('hidden');
+      exportMenu.classList.remove('flex');
+      
+      const jsonContent = JSON.stringify(mindmapData, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${mindmapData.name || 'AI_心智圖'}.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
     });
 
     // 2. Node Interactions (Event Delegation)
@@ -729,7 +919,9 @@
     generateForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const topic = topicInput.value.trim();
+      const customReq = customReqInput.value.trim();
       const t = i18n[currentLang];
+      
       if (!topic) return;
 
       const cleanApiKey = apiKeyInput.value.trim();
@@ -745,8 +937,11 @@
 
       setLoading(true);
       showError(null);
+      // 送出時自動收合進階選單
+      advancedPanel.classList.add('hidden');
+      advancedPanel.classList.remove('flex');
 
-      const prompt = t.promptTpl(topic);
+      const prompt = t.promptTpl(topic, customReq, uploadedFileContent);
 
       try {
         const url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
