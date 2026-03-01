@@ -177,7 +177,9 @@
         viewResult: '查看結果',
         enterPractice: '進入作答',
         aiGradingInProgress: '正在由 AI 批改作業中，請稍候...',
-        aiFeedback: 'AI 評語：'
+        aiFeedback: 'AI 評語：',
+        assignmentReference: '作業參考資料 (全卷)',
+        uploadAssignmentRef: '上傳全卷參考資料'
       },
       en: {
         appTitle: 'AI Assignment System',
@@ -292,7 +294,9 @@
         viewResult: 'View Result',
         enterPractice: 'Enter Practice',
         aiGradingInProgress: 'AI is grading the assignment, please wait...',
-        aiFeedback: 'AI Feedback: '
+        aiFeedback: 'AI Feedback: ',
+        assignmentReference: 'Assignment Reference Material',
+        uploadAssignmentRef: 'Upload Reference'
       }
     };
 
@@ -492,6 +496,7 @@ Generate ${qType} questions. JSON format must be strictly like this:
           date: new Date().toLocaleDateString(),
           dueDate: '', 
           isPublished: false,
+          referenceFile: null, // 新增：全卷參考資料
           questions: []
         };
         setPracticeSets([newPractice, ...practiceSets]);
@@ -751,6 +756,16 @@ Generate ${qType} questions. JSON format must be strictly like this:
         }
         const reader = new FileReader();
         reader.onload = (e) => updateQuestion(qId, 'referenceFile', { name: file.name, type: file.type, data: e.target.result });
+        reader.readAsDataURL(file);
+      };
+
+      const handlePracticeFileUpload = (file) => {
+        if (!file || file.size > 2 * 1024 * 1024) {
+          showNotification(t.fileTooLarge, 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => updateCurrentPractice({ referenceFile: { name: file.name, type: file.type, data: e.target.result } });
         reader.readAsDataURL(file);
       };
 
@@ -1028,6 +1043,22 @@ Generate ${qType} questions. JSON format must be strictly like this:
                 <p className="text-xs text-slate-400 mt-2">{t.dueDateHelp}</p>
               </div>
 
+              <div className="bg-white p-5 rounded-xl border shadow-sm text-sm">
+                <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-1.5"><FileText size={16} className="text-indigo-600"/> {t.assignmentReference}</h3>
+                <input 
+                  type="file" 
+                  accept="image/*,application/pdf"
+                  onChange={e => handlePracticeFileUpload(e.target.files[0])}
+                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition cursor-pointer mb-2"
+                />
+                {currentPractice.referenceFile && (
+                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-md text-sm border border-green-200">
+                    <CheckCircle size={16}/> <span className="truncate max-w-[120px]">{currentPractice.referenceFile.name}</span>
+                    <button onClick={() => updateCurrentPractice({referenceFile: null})} className="ml-2 text-red-400 hover:text-red-600"><X size={16}/></button>
+                  </div>
+                )}
+              </div>
+
               <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm">
                 <h3 className="font-bold text-indigo-800 mb-2">{t.summary}</h3>
                 <div className="flex justify-between mb-1"><span>{t.totalQuestions}：</span><b>{currentPractice.questions.length}</b></div>
@@ -1111,6 +1142,18 @@ Generate ${qType} questions. JSON format must be strictly like this:
           <div className="max-w-4xl mx-auto p-6 space-y-6">
             <div className="flex items-center gap-4 mb-6"><button onClick={() => setView('classroom')} className="p-2 border rounded-lg hover:bg-slate-50"><ArrowLeft size={20}/></button><h2 className="text-2xl font-bold">{currentPractice.title}</h2></div>
             
+            {currentPractice.referenceFile && (
+              <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-3">
+                <div className="flex items-center gap-2 text-indigo-800 font-medium">
+                  <FileText size={20} className="text-indigo-600" />
+                  <span>{t.assignmentReference}: {currentPractice.referenceFile.name}</span>
+                </div>
+                <a href={currentPractice.referenceFile.data} target="_blank" rel="noreferrer" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-md transition flex items-center gap-2 whitespace-nowrap">
+                  <Eye size={16} /> {t.viewAttachment}
+                </a>
+              </div>
+            )}
+
             {isReadOnly && (
               <div className="bg-indigo-600 text-white p-4 rounded-lg flex justify-between items-center shadow-md mb-6">
                  <span className="font-bold">{t.totalScore}</span>
