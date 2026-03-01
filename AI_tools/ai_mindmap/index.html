@@ -29,6 +29,83 @@
     .exporting .group-hover\:opacity-100 {
       opacity: 0 !important;
     }
+    
+    /* 允許節點被自由拉長縮放的 CSS (移到外層容器) */
+    .resizable-node {
+      resize: both;
+      overflow: auto; /* 必須為 auto, hidden 或 scroll 才能出現 resize 縮放角 */
+    }
+    /* 隱藏原生醜陋的滾動條，保留右下角縮放把手 */
+    .resizable-node::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* === 樹形圖 (由上至下) 的組織架構專屬 CSS === */
+    .tree-layout ul {
+      padding-top: 24px;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      margin: 0;
+      padding-left: 0;
+    }
+    .tree-layout li {
+      position: relative;
+      padding: 24px 12px 0 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      list-style-type: none;
+    }
+    /* 橫向連接線 */
+    .tree-layout li::before, .tree-layout li::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 50%;
+      border-top: 2px solid #cbd5e1;
+      width: 50%;
+      height: 24px;
+    }
+    .tree-layout li::after {
+      right: auto;
+      left: 50%;
+      border-left: 2px solid #cbd5e1;
+    }
+    /* 單一子節點不顯示橫線 */
+    .tree-layout li:only-child::after, .tree-layout li:only-child::before {
+      display: none;
+    }
+    .tree-layout li:only-child {
+      padding-top: 0;
+    }
+    /* 移除頭尾節點向外延伸的線條 */
+    .tree-layout li:first-child::before, .tree-layout li:last-child::after {
+      border: 0 none;
+    }
+    /* 修正最後一個節點的轉角垂直線 */
+    .tree-layout li:last-child::before {
+      border-right: 2px solid #cbd5e1;
+      border-radius: 0;
+    }
+    /* 從父節點往下延伸的垂直線 */
+    .tree-layout ul::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      border-left: 2px solid #cbd5e1;
+      width: 0;
+      height: 24px;
+      transform: translateX(-50%);
+    }
+    /* 隱藏最頂層根節點上方的連接線 */
+    .tree-layout.root-container > ul::before {
+      display: none;
+    }
+    .tree-layout.root-container > ul {
+      padding-top: 0;
+    }
   </style>
 </head>
 <body class="flex flex-col h-screen bg-slate-50 font-sans overflow-hidden text-slate-800">
@@ -74,6 +151,12 @@
               />
             </div>
             
+            <!-- 圖表類型選擇 -->
+            <select id="diagram-type-select" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-3 py-2.5 rounded-xl border border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-colors cursor-pointer shrink-0 appearance-none">
+              <option value="mindmap" id="opt-mindmap">心智圖</option>
+              <option value="tree" id="opt-tree">樹形圖</option>
+            </select>
+
             <!-- 進階設定按鈕 -->
             <button type="button" id="toggle-advanced-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 rounded-xl transition-colors flex items-center justify-center border border-transparent hover:border-slate-300" title="進階設定">
               <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
@@ -115,7 +198,18 @@
     </div>
 
     <!-- Toolbar -->
-    <div class="absolute bottom-6 right-6 z-20 flex gap-2 bg-white/90 backdrop-blur shadow-lg p-2 rounded-xl border border-slate-200">
+    <div class="absolute bottom-6 right-6 z-20 flex gap-2 bg-white/90 backdrop-blur shadow-lg p-2 rounded-xl border border-slate-200 items-center">
+      
+      <!-- 歷史紀錄控制: 上一步/下一步 -->
+      <button id="undo-btn" class="p-2 text-slate-400 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="上一步 (Ctrl+Z)" disabled>
+        <i data-lucide="undo-2" class="w-5 h-5"></i>
+      </button>
+      <button id="redo-btn" class="p-2 text-slate-400 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="下一步 (Ctrl+Y)" disabled>
+        <i data-lucide="redo-2" class="w-5 h-5"></i>
+      </button>
+      
+      <div class="w-px h-6 bg-slate-200 mx-1"></div>
+
       <!-- 匯出選單容器 -->
       <div class="relative" id="export-container">
         <button id="download-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="匯出/下載">
@@ -134,7 +228,9 @@
           </button>
         </div>
       </div>
-      <div class="w-px h-auto bg-slate-200 my-1"></div>
+
+      <div class="w-px h-6 bg-slate-200 mx-1"></div>
+
       <button id="zoom-out-btn" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="縮小">
         <i data-lucide="zoom-out" class="w-5 h-5"></i>
       </button>
@@ -154,6 +250,7 @@
         <li id="guide-2"><span class="font-medium text-indigo-600">滑鼠移至節點</span>可新增或刪除</li>
         <li id="guide-3">拖曳背景可平移畫布</li>
         <li id="guide-4">Ctrl + 滾輪可縮放畫布</li>
+        <li id="guide-5">拖曳節點右下角可手動拉長/縮放</li>
       </ul>
     </div>
 
@@ -182,17 +279,22 @@
     let currentLang = 'zh-TW';
     const i18n = {
       'zh-TW': {
-        appTitle: 'AI 心智圖生成器',
+        appTitle: 'AI 圖表生成器',
         langBtn: 'EN',
         apiKeyPlaceholder: '輸入 Qwen API Key (sk-...)',
-        topicPlaceholder: '輸入任何主題... (例如：第二次世界大戰、區塊鏈技術、如何學習寫程式)',
+        topicPlaceholder: '輸入任何主題... (例如：第二次世界大戰、區塊鏈技術)',
         btnGenerate: '生成',
         btnGenerating: '思考中...',
+        optMindmap: '心智圖',
+        optTree: '樹形圖',
         guideTitle: '操作指南',
         guide1: '<span class="font-medium text-indigo-600">單擊節點</span>可直接編輯文字',
         guide2: '<span class="font-medium text-indigo-600">滑鼠移至節點</span>可新增或刪除',
         guide3: '拖曳背景可平移畫布',
         guide4: 'Ctrl + 滾輪可縮放畫布',
+        guide5: '拖曳節點右下角可手動拉長/縮放',
+        ttUndo: '上一步 (Ctrl+Z)',
+        ttRedo: '下一步 (Ctrl+Y)',
         ttDownload: '匯出 / 下載',
         ttZoomOut: '縮小',
         ttReset: '置中重置',
@@ -208,7 +310,7 @@
         errKeyFormat: '提示：DashScope API Key 通常以 \'sk-\' 開頭，請確認您輸入的不是 AccessKey ID。',
         errApiNoText: '無效的 API 回應 (查無文本)',
         errApiJson: 'API 返回的 JSON 格式不符合預期',
-        errApiFail: '生成心智圖時發生錯誤，請檢查 API Key 或稍後再試。',
+        errApiFail: '生成圖表時發生錯誤，請檢查 API Key 或稍後再試。',
         errDownload: '下載圖片失敗，請稍後再試。',
         errFileTooLarge: '文件過大，請上傳小於 10MB 的檔案。',
         errFileRead: '讀取或解析文件失敗，請確認檔案格式是否正確。',
@@ -220,50 +322,58 @@
         ttAdvanced: '進階設定',
         fileParsing: '正在解析文件中，請稍候...',
         fileLoaded: '已載入文件：{name}',
-        promptSystem: '你是一個專業的知識圖譜與心智圖專家。請嚴格輸出 JSON 格式。',
-        promptTpl: (topic, customReq, refText) => `
-          你是一個專業的知識圖譜與心智圖專家。
-          請根據使用者輸入的主題：「${topic}」，生成一個結構清晰、內容豐富且具體的心智圖資料。
-          ${customReq ? `\n【使用者的特別要求】：\n${customReq}\n` : ''}
-          ${refText ? `\n【請參考以下提供的資料內容來提煉心智圖】：\n<reference_material>\n${refText}\n</reference_material>\n` : ''}
-          
-          請嚴格按照以下 JSON 結構輸出，不要包含任何額外的 Markdown 標記（如 \`\`\`json 等），直接輸出乾淨的 JSON 字串：
-          {
-            "name": "根節點 (主題名稱)",
-            "children": [
-              {
-                "name": "主要子主題 1",
-                "children": [
-                  {
-                    "name": "細節 1",
-                    "children": [
-                      { "name": "更深入的細節" }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          
-          要求：
-          1. 最大深度為 4 層（根節點算第 1 層）。
-          2. 內容必須使用繁體中文。
-          3. 每個節點的文字應簡明扼要，方便作為心智圖閱讀。
-          4. 涵蓋該主題的關鍵面向（例如：定義、歷史、核心概念、應用、優缺點等，視主題而定）。
-        `
+        promptSystem: '你是一個專業的知識圖譜專家。請嚴格輸出 JSON 格式。',
+        promptTpl: (topic, customReq, refText, type) => {
+          const typeDesc = type === 'tree' ? '嚴格層級分類、結構化的樹形圖' : '發散性思維、聯想性強的心智圖';
+          return `
+            你是一個專業的知識圖譜與圖表專家。
+            請根據使用者輸入的主題：「${topic}」，生成一個結構清晰、內容豐富且具體的【${typeDesc}】資料。
+            ${customReq ? `\n【使用者的特別要求】：\n${customReq}\n` : ''}
+            ${refText ? `\n【請參考以下提供的資料內容來提煉內容】：\n<reference_material>\n${refText}\n</reference_material>\n` : ''}
+            
+            請嚴格按照以下 JSON 結構輸出，不要包含任何額外的 Markdown 標記（如 \`\`\`json 等），直接輸出乾淨的 JSON 字串：
+            {
+              "name": "根節點 (主題名稱)",
+              "children": [
+                {
+                  "name": "主要子主題 1",
+                  "children": [
+                    {
+                      "name": "細節 1",
+                      "children": [
+                        { "name": "更深入的細節" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+            
+            要求：
+            1. 最大深度為 4 層（根節點算第 1 層）。
+            2. 內容必須使用繁體中文。
+            3. 每個節點的文字應簡明扼要，方便作為圖表閱讀。
+            4. 涵蓋該主題的關鍵面向（例如：定義、歷史、核心概念、應用、優缺點等，視主題而定）。
+          `;
+        }
       },
       'en': {
-        appTitle: 'AI Mindmap Gen',
+        appTitle: 'AI Diagram Gen',
         langBtn: '中',
         apiKeyPlaceholder: 'Enter Qwen API Key (sk-...)',
         topicPlaceholder: 'Enter any topic... (e.g., WWII, Blockchain)',
         btnGenerate: 'Generate',
         btnGenerating: 'Thinking...',
+        optMindmap: 'Mindmap',
+        optTree: 'Tree Diagram',
         guideTitle: 'Guide',
         guide1: '<span class="font-medium text-indigo-600">Click node</span> to edit text',
         guide2: '<span class="font-medium text-indigo-600">Hover node</span> to add/delete',
         guide3: 'Drag background to pan',
         guide4: 'Ctrl + Scroll to zoom',
+        guide5: 'Drag bottom-right corner to resize node',
+        ttUndo: 'Undo (Ctrl+Z)',
+        ttRedo: 'Redo (Ctrl+Y)',
         ttDownload: 'Export / Download',
         ttZoomOut: 'Zoom Out',
         ttReset: 'Reset View',
@@ -279,7 +389,7 @@
         errKeyFormat: 'Hint: DashScope API Keys usually start with "sk-".',
         errApiNoText: 'Invalid API response (no text found).',
         errApiJson: 'API returned unexpected JSON format.',
-        errApiFail: 'Error generating mindmap. Check API Key or try again.',
+        errApiFail: 'Error generating diagram. Check API Key or try again.',
         errDownload: 'Failed to download image. Try again later.',
         errFileTooLarge: 'File too large. Please upload a file under 10MB.',
         errFileRead: 'Failed to read or parse the file. Please check the format.',
@@ -291,37 +401,40 @@
         ttAdvanced: 'Advanced Settings',
         fileParsing: 'Parsing file, please wait...',
         fileLoaded: 'Loaded file: {name}',
-        promptSystem: 'You are a professional knowledge graph and mind map expert. Output strictly in JSON format.',
-        promptTpl: (topic, customReq, refText) => `
-          You are a professional knowledge graph and mind map expert.
-          Generate a well-structured, rich, and specific mind map based on the user's topic: "${topic}".
-          ${customReq ? `\n[User's Custom Requirements]:\n${customReq}\n` : ''}
-          ${refText ? `\n[Reference Material to Extract From]:\n<reference_material>\n${refText}\n</reference_material>\n` : ''}
-          
-          Strictly output the following JSON structure without any additional Markdown tags (like \`\`\`json):
-          {
-            "name": "Root Node (Topic Name)",
-            "children": [
-              {
-                "name": "Main Subtopic 1",
-                "children": [
-                  {
-                    "name": "Detail 1",
-                    "children": [
-                      { "name": "Deeper Detail" }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          
-          Requirements:
-          1. Maximum depth of 4 levels (root node is level 1).
-          2. Content MUST be in English.
-          3. Node text should be concise for easy reading as a mind map.
-          4. Cover key aspects of the topic (e.g., definition, history, core concepts, applications, pros/cons).
-        `
+        promptSystem: 'You are a professional knowledge graph expert. Output strictly in JSON format.',
+        promptTpl: (topic, customReq, refText, type) => {
+          const typeDesc = type === 'tree' ? 'strictly hierarchical, structured tree diagram' : 'divergent, associative mind map';
+          return `
+            You are a professional knowledge graph and diagram expert.
+            Generate a well-structured, rich, and specific 【${typeDesc}】 based on the user's topic: "${topic}".
+            ${customReq ? `\n[User's Custom Requirements]:\n${customReq}\n` : ''}
+            ${refText ? `\n[Reference Material to Extract From]:\n<reference_material>\n${refText}\n</reference_material>\n` : ''}
+            
+            Strictly output the following JSON structure without any additional Markdown tags (like \`\`\`json):
+            {
+              "name": "Root Node (Topic Name)",
+              "children": [
+                {
+                  "name": "Main Subtopic 1",
+                  "children": [
+                    {
+                      "name": "Detail 1",
+                      "children": [
+                        { "name": "Deeper Detail" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+            
+            Requirements:
+            1. Maximum depth of 4 levels (root node is level 1).
+            2. Content MUST be in English.
+            3. Node text should be concise for easy reading as a diagram.
+            4. Cover key aspects of the topic (e.g., definition, history, core concepts, applications, pros/cons).
+          `;
+        }
       }
     };
 
@@ -381,6 +494,12 @@
     let isLoading = false;
     let currentStats = null; // 儲存當次生成的 token 資訊
     let uploadedFileContent = ""; // 儲存上傳的文件內容
+    let currentDiagramType = 'mindmap'; // 'mindmap' 或者是 'tree'
+
+    // --- Undo/Redo State ---
+    let historyStack = [];
+    let historyIndex = -1;
+    let isNavigatingHistory = false;
 
     // --- DOM Elements ---
     const canvas = document.getElementById('canvas');
@@ -404,25 +523,100 @@
     const customReqInput = document.getElementById('custom-req-input');
     const fileInput = document.getElementById('file-input');
     const fileStatus = document.getElementById('file-status');
+    const diagramTypeSelect = document.getElementById('diagram-type-select');
     
     const exportMenu = document.getElementById('export-menu');
     const txtExpPng = document.getElementById('txt-exp-png');
     const txtExpMd = document.getElementById('txt-exp-md');
     const txtExpJson = document.getElementById('txt-exp-json');
+    const optMindmap = document.getElementById('opt-mindmap');
+    const optTree = document.getElementById('opt-tree');
+    
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
 
     // --- Helper Functions & Core Logic ---
+    
+    // History Management
+    const saveHistory = () => {
+      if (isNavigatingHistory) return;
+      // 若有新動作，則捨棄當前索引之後的所有復原步驟
+      historyStack = historyStack.slice(0, historyIndex + 1);
+      historyStack.push(JSON.stringify(mindmapData));
+      
+      // 限制歷史長度為 50 步，避免記憶體佔用過大
+      if (historyStack.length > 50) {
+        historyStack.shift();
+      } else {
+        historyIndex++;
+      }
+      updateUndoRedoUI();
+    };
+
+    const undo = () => {
+      if (historyIndex > 0) {
+        historyIndex--;
+        isNavigatingHistory = true;
+        mindmapData = JSON.parse(historyStack[historyIndex]);
+        renderTree();
+        isNavigatingHistory = false;
+        updateUndoRedoUI();
+      }
+    };
+
+    const redo = () => {
+      if (historyIndex < historyStack.length - 1) {
+        historyIndex++;
+        isNavigatingHistory = true;
+        mindmapData = JSON.parse(historyStack[historyIndex]);
+        renderTree();
+        isNavigatingHistory = false;
+        updateUndoRedoUI();
+      }
+    };
+
+    const updateUndoRedoUI = () => {
+      if (historyIndex > 0) {
+        undoBtn.disabled = false;
+        undoBtn.classList.remove('text-slate-400');
+        undoBtn.classList.add('text-slate-600', 'cursor-pointer');
+      } else {
+        undoBtn.disabled = true;
+        undoBtn.classList.add('text-slate-400');
+        undoBtn.classList.remove('text-slate-600', 'cursor-pointer');
+      }
+      
+      if (historyIndex < historyStack.length - 1) {
+        redoBtn.disabled = false;
+        redoBtn.classList.remove('text-slate-400');
+        redoBtn.classList.add('text-slate-600', 'cursor-pointer');
+      } else {
+        redoBtn.disabled = true;
+        redoBtn.classList.add('text-slate-400');
+        redoBtn.classList.remove('text-slate-600', 'cursor-pointer');
+      }
+    };
+
     const escapeHTML = (str) => {
       return str.replace(/[&<>'"]/g, tag => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
       }[tag]));
     };
 
-    const getNodeClasses = (lvl) => {
+    const getNodeClasses = (lvl, type) => {
+      // 根據圖表類型調整圓角與外觀
+      const isTree = type === 'tree';
+      const radiusRoot = isTree ? 'rounded-md' : 'rounded-2xl';
+      const radiusL1 = isTree ? 'rounded-md' : 'rounded-xl';
+      const radiusL2 = isTree ? 'rounded-sm' : 'rounded-lg';
+      const radiusL3 = isTree ? 'rounded-sm' : 'rounded-md';
+
+      // 加高 min-height 與 py-padding，解決「框太扁」的問題
       switch (lvl) {
-        case 0: return "bg-slate-900 text-white shadow-xl text-lg font-bold border-2 border-slate-700 py-3 px-6 rounded-xl";
-        case 1: return "bg-indigo-600 text-white shadow-md font-semibold py-2 px-4 rounded-lg";
-        case 2: return "bg-blue-100 text-blue-900 shadow-sm font-medium py-2 px-4 rounded-md border border-blue-200";
-        default: return "bg-white text-slate-700 shadow-sm py-1.5 px-3 rounded-md border border-slate-200 text-sm";
+        case 0: return `bg-slate-900 text-white shadow-xl text-lg font-bold border-2 border-slate-700 py-4 px-8 min-h-[4.5rem] min-w-[140px] ${radiusRoot}`;
+        case 1: return `bg-indigo-600 text-white shadow-md font-semibold py-3 px-6 min-h-[3.5rem] min-w-[120px] ${radiusL1}`;
+        case 2: return `bg-blue-100 text-blue-900 shadow-sm font-medium py-2.5 px-5 min-h-[3rem] min-w-[100px] ${radiusL2} border border-blue-200`;
+        default: return `bg-white text-slate-700 shadow-sm py-2 px-4 min-h-[2.5rem] min-w-[80px] ${radiusL3} border border-slate-200 text-sm`;
       }
     };
 
@@ -483,7 +677,9 @@
 
     const updateNode = (pathStr, newText) => {
       const target = getTargetData(pathStr);
+      if (target.name === newText) return;
       target.name = newText;
+      saveHistory();
       renderTree();
     };
 
@@ -491,6 +687,7 @@
       const target = getTargetData(pathStr);
       if (!target.children) target.children = [];
       target.children.push({ name: i18n[currentLang].newNodeText });
+      saveHistory();
       renderTree();
     };
 
@@ -498,23 +695,28 @@
       if (!pathStr) return; // 不允許刪除根節點
       const { parent, targetIndex } = getParentDataAndIndex(pathStr);
       parent.children.splice(targetIndex, 1);
+      saveHistory();
       renderTree();
     };
 
-    const buildNodeHTML = (node, pathStr = "", level = 0, isRoot = true) => {
+    const buildNodeHTML = (node, pathStr = "", level = 0, isRoot = true, type = 'mindmap', direction = 'right') => {
       const hasChildren = node.children && node.children.length > 0;
-      const nodeClasses = getNodeClasses(level);
+      const nodeClasses = getNodeClasses(level, type);
       
-      let html = `<div class="flex items-center">`;
-
-      // Node Container
-      html += `
-        <div class="relative flex items-center group z-10 node-container">
-          <div class="max-w-xs transition-all duration-300 hover:scale-[1.02] ${nodeClasses} cursor-pointer min-w-[50px]">
-            <div class="whitespace-pre-wrap break-words node-text" data-path="${pathStr}">${escapeHTML(node.name)}</div>
+      // 擷取使用者手動拖曳設定好的寬高，將其綁定回資料模型確保不會在重新渲染時丟失
+      const widthStyle = node.width ? `width: ${node.width};` : '';
+      const heightStyle = node.height ? `height: ${node.height};` : '';
+      const styleAttrContainer = (widthStyle || heightStyle) ? `style="${widthStyle} ${heightStyle}"` : '';
+      
+      // 取消原本的 transition-all (改為 transition-shadow 以避免原生的拖拽調整邊框出現詭異的回彈動畫)
+      // 將 resize 樣式移動到容器層，而不是文字層，修復一併變寬的 bug
+      const nodeUI = `
+        <div class="relative flex items-center justify-center group z-10 node-container">
+          <div class="resizable-node transition-shadow duration-300 hover:shadow-lg ${nodeClasses} cursor-pointer text-center flex flex-col items-center justify-center" ${styleAttrContainer} data-path="${pathStr}">
+            <div class="whitespace-pre-wrap break-words node-text leading-relaxed w-full h-full flex items-center justify-center">${escapeHTML(node.name)}</div>
             
             <!-- Hover Action Buttons -->
-            <div class="absolute -top-3 -right-4 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity bg-white shadow-md border border-slate-200 rounded-lg p-1 z-30">
+            <div class="absolute -top-3 ${direction === 'left' ? '-left-12' : '-right-4'} opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity bg-white shadow-md border border-slate-200 rounded-lg p-1 z-30">
               <button class="add-btn p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded-md text-slate-400 transition-colors" title="${i18n[currentLang].ttAddNode}" data-path="${pathStr}">
                 <i data-lucide="plus" class="w-3.5 h-3.5 pointer-events-none"></i>
               </button>
@@ -528,40 +730,156 @@
         </div>
       `;
 
-      // Children Container
-      if (hasChildren) {
-        html += `<div class="relative flex flex-col pl-10 md:pl-12">`;
-        html += `<div class="absolute left-0 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
+      if (type === 'tree') {
+        // === 樹形圖 (垂直向下) 的渲染邏輯 ===
+        let html = `<li>${nodeUI}`;
+        if (hasChildren) {
+          html += `<ul>`;
+          node.children.forEach((child, index) => {
+            const childPath = pathStr ? `${pathStr},${index}` : `${index}`;
+            html += buildNodeHTML(child, childPath, level + 1, false, type, direction);
+          });
+          html += `</ul>`;
+        }
+        html += `</li>`;
+        
+        // 如果是遞迴的最外層，包裝專屬的容器 class
+        if (isRoot) {
+          return `<div class="tree-layout root-container"><ul>${html}</ul></div>`;
+        }
+        return html;
 
-        node.children.forEach((child, index) => {
-          const childPath = pathStr ? `${pathStr},${index}` : `${index}`;
-          const isChildFirst = index === 0;
-          const isChildLast = index === node.children.length - 1;
+      } else {
+        // === 心智圖 (水平向兩側發散) 的渲染邏輯 ===
+        if (isRoot) {
+          // 根節點：將子節點平分到左右兩側
+          const children = node.children || [];
+          const half = Math.ceil(children.length / 2);
+          const leftChildren = children.slice(0, half);
+          const rightChildren = children.slice(half);
 
-          html += `<div class="relative py-2.5 flex items-center">`;
-          
-          // Vertical connector
-          html += `<div class="absolute left-5 md:left-6 w-[2px] bg-slate-300 transition-colors group-hover:bg-indigo-300" 
-                        style="top: ${isChildFirst ? '50%' : '0'}; bottom: ${isChildLast ? '50%' : '0'};"></div>`;
-          // Horizontal connector
-          html += `<div class="absolute left-5 md:left-6 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
-          
-          // Recursion
-          html += buildNodeHTML(child, childPath, level + 1, false);
+          let html = `<div class="flex items-center justify-center">`;
+
+          // 1. 左側分支
+          if (leftChildren.length > 0) {
+            html += `<div class="relative flex flex-col items-end pr-10 md:pr-12">`;
+            html += `<div class="absolute right-0 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors"></div>`;
+            leftChildren.forEach((child, index) => {
+              const childPath = pathStr ? `${pathStr},${index}` : `${index}`;
+              const isFirst = index === 0;
+              const isLast = index === leftChildren.length - 1;
+              html += `<div class="relative py-2.5 flex items-center justify-end">`;
+              html += `<div class="absolute right-5 md:right-6 w-[2px] bg-slate-300 transition-colors" style="top: ${isFirst ? '50%' : '0'}; bottom: ${isLast ? '50%' : '0'};"></div>`;
+              html += `<div class="absolute right-5 md:right-6 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors"></div>`;
+              html += buildNodeHTML(child, childPath, level + 1, false, type, 'left');
+              html += `</div>`;
+            });
+            html += `</div>`;
+          }
+
+          // 2. 中間根節點
+          html += `<div class="z-20">${nodeUI}</div>`;
+
+          // 3. 右側分支
+          if (rightChildren.length > 0) {
+            html += `<div class="relative flex flex-col items-start pl-10 md:pl-12">`;
+            html += `<div class="absolute left-0 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors"></div>`;
+            rightChildren.forEach((child, index) => {
+              const realIndex = half + index;
+              const childPath = pathStr ? `${pathStr},${realIndex}` : `${realIndex}`;
+              const isFirst = index === 0;
+              const isLast = index === rightChildren.length - 1;
+              html += `<div class="relative py-2.5 flex items-center justify-start">`;
+              html += `<div class="absolute left-5 md:left-6 w-[2px] bg-slate-300 transition-colors" style="top: ${isFirst ? '50%' : '0'}; bottom: ${isLast ? '50%' : '0'};"></div>`;
+              html += `<div class="absolute left-5 md:left-6 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors"></div>`;
+              html += buildNodeHTML(child, childPath, level + 1, false, type, 'right');
+              html += `</div>`;
+            });
+            html += `</div>`;
+          }
           
           html += `</div>`;
-        });
-
-        html += `</div>`;
+          return html;
+        } else {
+          // 非根節點：根據其方向 (左或右) 繼續向外生長
+          let html = `<div class="flex items-center ${direction === 'left' ? 'flex-row-reverse' : 'flex-row'}">`;
+          html += `<div class="z-20">${nodeUI}</div>`;
+          
+          if (hasChildren) {
+            if (direction === 'left') {
+              html += `<div class="relative flex flex-col items-end pr-10 md:pr-12">`;
+              html += `<div class="absolute right-0 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
+              node.children.forEach((child, index) => {
+                const childPath = `${pathStr},${index}`;
+                const isFirst = index === 0;
+                const isLast = index === node.children.length - 1;
+                html += `<div class="relative py-2.5 flex items-center justify-end">`;
+                html += `<div class="absolute right-5 md:right-6 w-[2px] bg-slate-300 transition-colors group-hover:bg-indigo-300" style="top: ${isFirst ? '50%' : '0'}; bottom: ${isLast ? '50%' : '0'};"></div>`;
+                html += `<div class="absolute right-5 md:right-6 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
+                html += buildNodeHTML(child, childPath, level + 1, false, type, 'left');
+                html += `</div>`;
+              });
+              html += `</div>`;
+            } else {
+              html += `<div class="relative flex flex-col items-start pl-10 md:pl-12">`;
+              html += `<div class="absolute left-0 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
+              node.children.forEach((child, index) => {
+                const childPath = `${pathStr},${index}`;
+                const isFirst = index === 0;
+                const isLast = index === node.children.length - 1;
+                html += `<div class="relative py-2.5 flex items-center justify-start">`;
+                html += `<div class="absolute left-5 md:left-6 w-[2px] bg-slate-300 transition-colors group-hover:bg-indigo-300" style="top: ${isFirst ? '50%' : '0'}; bottom: ${isLast ? '50%' : '0'};"></div>`;
+                html += `<div class="absolute left-5 md:left-6 top-1/2 w-5 md:w-6 h-[2px] bg-slate-300 -translate-y-1/2 transition-colors group-hover:bg-indigo-300"></div>`;
+                html += buildNodeHTML(child, childPath, level + 1, false, type, 'right');
+                html += `</div>`;
+              });
+              html += `</div>`;
+            }
+          }
+          html += `</div>`;
+          return html;
+        }
       }
-
-      html += `</div>`;
-      return html;
     };
 
+    // 利用 ResizeObserver 動態追蹤使用者手動拉長的設定值並存回資料庫
+    let resizeTimeout;
+    const nodeResizeObserver = new ResizeObserver(entries => {
+      let hasChanges = false;
+      for (let entry of entries) {
+        const el = entry.target;
+        if (el.style.width || el.style.height) {
+          const path = el.dataset.path;
+          if (path !== undefined && path !== null) {
+            const target = getTargetData(path);
+            if (target) {
+              if (el.style.width && target.width !== el.style.width) {
+                target.width = el.style.width;
+                hasChanges = true;
+              }
+              if (el.style.height && target.height !== el.style.height) {
+                target.height = el.style.height;
+                hasChanges = true;
+              }
+            }
+          }
+        }
+      }
+      // 防抖機制：當使用者手動調整完尺寸後，等待0.5秒自動將新尺寸寫入歷史紀錄 (Undo)
+      if (hasChanges && !isNavigatingHistory) {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          saveHistory();
+        }, 500);
+      }
+    });
+
     const renderTree = () => {
-      mindmapRoot.innerHTML = buildNodeHTML(mindmapData, "", 0, true);
+      nodeResizeObserver.disconnect();
+      mindmapRoot.innerHTML = buildNodeHTML(mindmapData, "", 0, true, currentDiagramType);
       lucide.createIcons();
+      // 為所有可縮放節點外層掛載縮放監聽器
+      document.querySelectorAll('.resizable-node').forEach(el => nodeResizeObserver.observe(el));
     };
 
     const updateTransformStyle = () => {
@@ -596,6 +914,7 @@
       generateBtn.disabled = loading;
       customReqInput.disabled = loading;
       fileInput.disabled = loading;
+      diagramTypeSelect.disabled = loading;
       
       if (loading) {
         btnIconNormal.classList.add('hidden');
@@ -635,12 +954,18 @@
       if (!isLoading) btnText.textContent = t.btnGenerate;
       else btnText.textContent = t.btnGenerating;
       
+      optMindmap.textContent = t.optMindmap;
+      optTree.textContent = t.optTree;
+
       document.getElementById('guide-title').textContent = t.guideTitle;
       document.getElementById('guide-1').innerHTML = t.guide1;
       document.getElementById('guide-2').innerHTML = t.guide2;
       document.getElementById('guide-3').textContent = t.guide3;
       document.getElementById('guide-4').textContent = t.guide4;
+      document.getElementById('guide-5').textContent = t.guide5;
 
+      document.getElementById('undo-btn').title = t.ttUndo;
+      document.getElementById('redo-btn').title = t.ttRedo;
       document.getElementById('download-btn').title = t.ttDownload;
       document.getElementById('zoom-out-btn').title = t.ttZoomOut;
       document.getElementById('reset-view-btn').title = t.ttReset;
@@ -673,9 +998,31 @@
     });
 
     // Toolbar Buttons & Canvas Pan/Zoom
+    document.getElementById('undo-btn').addEventListener('click', undo);
+    document.getElementById('redo-btn').addEventListener('click', redo);
     document.getElementById('zoom-in-btn').addEventListener('click', () => handleZoom(0.2));
     document.getElementById('zoom-out-btn').addEventListener('click', () => handleZoom(-0.2));
     document.getElementById('reset-view-btn').addEventListener('click', resetView);
+
+    // 鍵盤快捷鍵 (Ctrl+Z / Ctrl+Y)
+    document.addEventListener('keydown', (e) => {
+      const target = e.target;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (!isInput) {
+          e.preventDefault();
+          if (e.shiftKey) redo();
+          else undo();
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        if (!isInput) {
+          e.preventDefault();
+          redo();
+        }
+      }
+    });
 
     canvas.addEventListener('mousedown', (e) => {
       if (e.target.closest('.node-container')) return;
@@ -714,6 +1061,12 @@
       e.stopPropagation();
       exportMenu.classList.toggle('hidden');
       exportMenu.classList.toggle('flex');
+    });
+
+    // 當切換圖表類型時，僅重新渲染當前資料以反應不同形狀風格，不主動打 API
+    diagramTypeSelect.addEventListener('change', (e) => {
+      currentDiagramType = e.target.value;
+      renderTree();
     });
 
     // 點擊外部時自動關閉下拉面板
@@ -853,7 +1206,7 @@
 
         // 建立下載連結並觸發
         const link = document.createElement('a');
-        link.download = `${mindmapData.name || 'AI_心智圖'}.png`;
+        link.download = `${mindmapData.name || 'AI_圖表'}.png`;
         link.href = canvasObj.toDataURL('image/png');
         link.click();
       } catch (err) {
@@ -886,7 +1239,7 @@
       const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `${mindmapData.name || 'AI_心智圖'}.md`;
+      link.download = `${mindmapData.name || 'AI_圖表'}.md`;
       link.click();
       URL.revokeObjectURL(link.href);
     });
@@ -900,7 +1253,7 @@
       const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `${mindmapData.name || 'AI_心智圖'}.json`;
+      link.download = `${mindmapData.name || 'AI_圖表'}.json`;
       link.click();
       URL.revokeObjectURL(link.href);
     });
@@ -924,27 +1277,24 @@
       }
 
       // 處理編輯
-      const textNode = e.target.closest('.node-text');
-      if (textNode) {
+      // 改為從 resizable-node 裡面尋找文字容器，這樣替換成 Textarea 後才能完整撐滿父元素
+      const containerNode = e.target.closest('.resizable-node');
+      if (containerNode && !containerNode.querySelector('textarea') && !e.target.closest('button')) {
         e.stopPropagation();
+        
+        const textNode = containerNode.querySelector('.node-text');
+        if (!textNode) return;
+        
         const currentText = textNode.textContent;
         const pathStr = textNode.dataset.path;
         
-        // 替換為 textarea
+        // 替換為 textarea，並自動套用 w-full h-full 佔滿由外層 resizable-node 掌控的空間
         const textarea = document.createElement('textarea');
         textarea.value = currentText;
-        textarea.className = "bg-transparent outline-none w-full min-w-[100px] resize-none overflow-hidden text-inherit font-inherit leading-tight p-0 m-0 border-none focus:ring-0 block";
-        textarea.rows = 1;
+        textarea.className = "bg-transparent outline-none w-full h-full resize-none overflow-hidden text-inherit font-inherit leading-relaxed p-0 m-0 border-none focus:ring-0 block text-center flex-1";
         
         textNode.replaceWith(textarea);
         
-        // 自動調整高度
-        textarea.style.height = textarea.scrollHeight + 'px';
-        textarea.addEventListener('input', () => {
-          textarea.style.height = 'auto';
-          textarea.style.height = textarea.scrollHeight + 'px';
-        });
-
         // 游標放最後面
         textarea.focus();
         textarea.selectionStart = textarea.value.length;
@@ -976,6 +1326,8 @@
       e.preventDefault();
       const topic = topicInput.value.trim();
       const customReq = customReqInput.value.trim();
+      // 在送出前更新目前的圖表類型
+      currentDiagramType = diagramTypeSelect.value;
       const t = i18n[currentLang];
       
       if (!topic) return;
@@ -997,7 +1349,7 @@
       advancedPanel.classList.add('hidden');
       advancedPanel.classList.remove('flex');
 
-      const prompt = t.promptTpl(topic, customReq, uploadedFileContent);
+      const prompt = t.promptTpl(topic, customReq, uploadedFileContent, currentDiagramType);
 
       try {
         const url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
@@ -1051,6 +1403,7 @@
         }
 
         mindmapData = parsedData;
+        saveHistory();
         resetView();
         renderTree();
       } catch (err) {
@@ -1064,7 +1417,8 @@
     // --- Initialization ---
     // 呼叫 Lucide 解析初始載入的 Header UI Icon
     lucide.createIcons();
-    // 渲染初始樹狀圖
+    // 儲存最初始的狀態並渲染
+    saveHistory();
     renderTree();
     updateTransformStyle();
 
