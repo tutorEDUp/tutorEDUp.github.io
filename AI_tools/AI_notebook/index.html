@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NotebookLM (Qwen版) - HTML單文件</title>
+  
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 引入 Phosphor Icons (圖標庫) -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    /* 自定義滾動條樣式 */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    /* 麥克風呼吸燈動畫 */
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .recording-pulse {
+      animation: pulse-red 1.5s infinite;
+      background-color: #ef4444 !important;
+      color: white !important;
+    }
+  </style>
+</head>
+<body class="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
+
+  <!-- 側邊欄 -->
+  <div class="w-72 bg-gray-100 border-r border-gray-200 flex flex-col shadow-sm z-10 flex-shrink-0">
+    <div class="p-4 flex items-center justify-between border-b border-gray-200 bg-white">
+      <div class="flex items-center space-x-2 text-indigo-600 font-bold text-lg">
+        <i class="ph-fill ph-book-open text-xl"></i>
+        <span>QwenLM</span>
+      </div>
+      <button onclick="toggleSettings(true)" class="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors" title="設置">
+        <i class="ph ph-gear text-lg"></i>
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4 flex flex-col">
+      <div class="flex items-center justify-between mb-4 flex-shrink-0">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider" id="sourcesCountText">資料庫 (0)</h2>
+      </div>
+      
+      <!-- 文件列表容器 -->
+      <div id="sourcesList" class="space-y-2 flex-1">
+        <!-- 動態渲染文件列表 -->
+      </div>
+    </div>
+
+    <div class="p-4 bg-white border-t border-gray-200">
+      <button onclick="toggleAddSource(true)" class="w-full flex items-center justify-center space-x-2 bg-white border border-gray-300 text-gray-700 py-2.5 rounded-xl hover:bg-gray-50 font-medium transition-colors shadow-sm">
+        <i class="ph ph-plus"></i>
+        <span>新增文件</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 主內容區 (文件查看 + 聊天) -->
+  <div class="flex-1 flex flex-col md:flex-row h-full min-w-0">
+    
+    <!-- 左側：文件內容查看器 -->
+    <div class="flex-1 border-r border-gray-200 flex flex-col bg-white overflow-hidden" id="documentViewer">
+      <!-- 內容將由 JS 動態渲染 -->
+    </div>
+
+    <!-- 右側：聊天區 -->
+    <div class="w-full md:w-[400px] lg:w-[450px] flex-shrink-0 bg-white flex flex-col shadow-[0_0_15px_rgba(0,0,0,0.03)] z-20 relative">
+      <div class="p-4 border-b border-gray-100 flex items-center space-x-2 bg-gray-50/80 backdrop-blur-sm">
+        <i class="ph-fill ph-chat-circle-dots text-xl text-indigo-500"></i>
+        <h2 class="font-semibold text-gray-800">對話研討室</h2>
+      </div>
+      
+      <!-- 聊天歷史 -->
+      <div id="chatHistory" class="flex-1 overflow-y-auto p-4 space-y-6 bg-gradient-to-b from-transparent to-gray-50/50">
+        <!-- 初始空狀態 -->
+        <div class="text-center text-sm text-gray-400 mt-10" id="emptyChatState">
+          <div class="inline-block p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            你好！我是你的 AI 研討助手。<br/>
+            我可以根據你上傳的文件回答問題、提取資訊或生成總結。
+          </div>
+        </div>
+      </div>
+
+      <!-- 聊天輸入區 -->
+      <div class="p-4 bg-white border-t border-gray-100">
+        <form onsubmit="handleChatSubmit(event)" class="relative flex items-center space-x-2">
+          <div class="relative flex-1">
+            <input
+              type="text"
+              id="chatInput"
+              placeholder="請先新增文件..."
+              disabled
+              class="w-full bg-gray-100 text-gray-800 border-transparent rounded-full pl-5 pr-12 py-3.5 focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all outline-none disabled:opacity-50"
+            />
+            <button 
+              type="button"
+              id="micButton"
+              onclick="toggleVoiceRecording()"
+              disabled
+              title="語音輸入 (可中斷朗讀)"
+              class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-indigo-600 rounded-full disabled:opacity-50 transition-colors"
+            >
+              <i class="ph-fill ph-microphone text-lg"></i>
+            </button>
+          </div>
+          <button 
+            type="submit"
+            id="sendButton"
+            disabled
+            class="p-3.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500 transition-colors flex-shrink-0"
+          >
+            <i class="ph-fill ph-paper-plane-right text-lg"></i>
+          </button>
+        </form>
+        <div class="text-center mt-2">
+          <span class="text-[10px] text-gray-400">內容由 Qwen API 提供支持，可能存在不準確的情況。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模態框：設置 API Key -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm items-center justify-center z-50 p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+        <h3 class="text-lg font-bold flex items-center space-x-2">
+          <i class="ph ph-gear text-gray-500 text-xl"></i>
+          <span>設置</span>
+        </h3>
+        <button onclick="toggleSettings(false)" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-lg"></i></button>
+      </div>
+      <div class="p-6">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Qwen API Key (國際版)</label>
+        <input type="password" id="apiKeyInput" placeholder="sk-..." class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4" />
+        <div class="bg-blue-50 text-blue-800 text-xs p-3 rounded-lg flex items-start space-x-2 mb-6 border border-blue-100">
+          <i class="ph-fill ph-info flex-shrink-0 text-base"></i>
+          <p>需要阿里雲 DashScope 國際版 API Key。<br/>接口地址: <code>dashscope-intl.aliyuncs.com</code></p>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button onclick="toggleSettings(false)" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors">取消</button>
+          <button onclick="saveApiKey()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors shadow-sm">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模態框：新增來源 -->
+  <div id="addSourceModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm items-center justify-center z-50 p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+        <h3 class="text-lg font-bold flex items-center space-x-2">
+          <i class="ph ph-plus text-indigo-500 text-xl"></i>
+          <span>新增資料來源</span>
+        </h3>
+        <button onclick="toggleAddSource(false)" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-lg"></i></button>
+      </div>
+      <div class="p-6 flex-1 overflow-y-auto">
+        <!-- 檔案上傳區塊 -->
+        <div class="mb-6 p-4 border border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center justify-center">
+          <label id="uploadLabel" class="flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors shadow-sm mb-2">
+            <i class="ph ph-upload-simple text-gray-500 mr-2 text-lg" id="uploadIcon"></i>
+            <span class="text-sm text-gray-700 font-medium" id="uploadText">選擇檔案上傳解析</span>
+            <input type="file" class="hidden" id="fileInput" accept=".txt,.md,.pdf,.jpg,.jpeg,.png,.csv" onchange="handleFileUpload(event)" />
+          </label>
+          <p class="text-xs text-gray-400 text-center max-w-sm">
+            支援格式：PDF, TXT, JPG, PNG。<br/>
+            (提示：PPT/Word 等複雜格式請先轉存為 PDF 後上傳)
+          </p>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">文件標題</label>
+          <input type="text" id="sourceTitle" placeholder="例如：2024季度財報摘要" class="w-full border border-gray-300 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div class="mb-2 h-64 flex flex-col">
+          <label class="block text-sm font-medium text-gray-700 mb-1">文件內容 (可手動修改解析後的文字)</label>
+          <textarea id="sourceContent" placeholder="在此處貼上文章、會議記錄或任何你想要AI分析的文本... 或使用上方按鈕上傳檔案自動提取。" class="w-full flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-serif text-sm"></textarea>
+        </div>
+      </div>
+      <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end space-x-3 flex-shrink-0">
+        <button onclick="toggleAddSource(false)" class="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg font-medium transition-colors">取消</button>
+        <button onclick="saveSource()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors shadow-sm">保存文件</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 狀態管理 ---
+    let apiKey = '';
+    let sources = [];
+    let activeSourceId = null;
+    let messages = [];
+    let isSpeaking = false;
+    let speakingId = null;
+    let isLoading = false;
+    
+    // 語音識別狀態
+    let isRecording = false;
+    let speechRecognition = null;
+    
+    // 語音朗讀分段列隊狀態 (Fix Bug)
+    let speechChunks = [];
+    let currentChunkIndex = 0;
+    let currentUtterance = null; // 新增全域變數，防止瀏覽器將語音物件當作垃圾回收而導致中斷
+
+    const QWEN_API_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
+    const DEFAULT_MODEL = 'qwen-plus';
+
+    // --- 初始化 ---
+    window.onload = () => {
+      const savedKey = localStorage.getItem('qwen_api_key');
+      if (savedKey) apiKey = savedKey;
+      else toggleSettings(true);
+
+      const savedSources = localStorage.getItem('notebooklm_sources');
+      if (savedSources) {
+        try {
+          sources = JSON.parse(savedSources);
+          if (sources.length > 0) activeSourceId = sources[0].id;
+        } catch (e) { console.error("解析文件失敗", e); }
+      }
+
+      initSpeechRecognition();
+      renderApp();
+    };
+
+    window.onbeforeunload = () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        speechChunks = [];
+      }
+    };
+
+    // --- 動態加載腳本 ---
+    const loadScript = (src) => {
+      return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    };
+
+    // --- UI 渲染邏輯 ---
+    function renderApp() {
+      renderSourcesList();
+      renderDocumentViewer();
+      renderMessages();
+      updateInputState();
+      
+      localStorage.setItem('notebooklm_sources', JSON.stringify(sources));
+    }
+
+    function renderSourcesList() {
+      document.getElementById('sourcesCountText').innerText = `資料庫 (${sources.length})`;
+      const listContainer = document.getElementById('sourcesList');
+      
+      if (sources.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center p-6 bg-white border border-dashed border-gray-300 rounded-xl text-gray-400 text-sm">
+            暫無資料，請點擊下方按鈕新增
+          </div>`;
+        return;
+      }
+
+      listContainer.innerHTML = sources.map(source => `
+        <div onclick="setActiveSource('${source.id}')" class="group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${activeSourceId === source.id ? 'bg-indigo-100 border border-indigo-200 text-indigo-900 shadow-sm' : 'bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm'}">
+          <div class="flex items-center space-x-3 overflow-hidden">
+            <i class="ph-fill ph-file-text text-lg flex-shrink-0 ${activeSourceId === source.id ? 'text-indigo-500' : 'text-gray-400'}"></i>
+            <span class="truncate text-sm font-medium">${escapeHtml(source.title)}</span>
+          </div>
+          <button onclick="event.stopPropagation(); deleteSource('${source.id}')" class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity" title="刪除">
+            <i class="ph ph-trash"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function renderDocumentViewer() {
+      const viewer = document.getElementById('documentViewer');
+      const activeSource = sources.find(s => s.id === activeSourceId);
+
+      if (activeSource) {
+        const isDocSpeaking = (isSpeaking && speakingId === 'doc');
+        viewer.innerHTML = `
+          <div class="p-6 border-b border-gray-100 flex items-center justify-between bg-white shadow-sm z-10 flex-shrink-0">
+            <h1 class="text-xl font-bold text-gray-800 flex items-center space-x-2 truncate pr-4">
+              <i class="ph-fill ph-text-align-left text-xl text-indigo-500 flex-shrink-0"></i>
+              <span class="truncate">${escapeHtml(activeSource.title)}</span>
+            </h1>
+            <div class="flex space-x-2 flex-shrink-0">
+              <button onclick="handleSpeak('doc', ${escapeHtmlAttr(activeSource.content)})" class="flex items-center space-x-1 px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${isDocSpeaking ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}">
+                <i class="ph-fill ${isDocSpeaking ? 'ph-square' : 'ph-speaker-high'} text-sm"></i>
+                <span id="docSpeakBtnText">${isDocSpeaking ? '停止朗讀' : '朗讀全文'}</span>
+              </button>
+              <button onclick="sendQuickCommand('摘要', '${escapeHtmlAttr(activeSource.title)}')" class="flex items-center space-x-1 px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors">
+                <i class="ph-fill ph-lightning text-sm"></i><span>生成摘要</span>
+              </button>
+              <button onclick="sendQuickCommand('測試', '${escapeHtmlAttr(activeSource.title)}')" class="flex items-center space-x-1 px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
+                <i class="ph-fill ph-book text-sm"></i><span>學習指南</span>
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 overflow-y-auto p-8 text-gray-700 leading-relaxed whitespace-pre-wrap text-sm md:text-base font-serif">
+            ${escapeHtml(activeSource.content)}
+          </div>
+        `;
+      } else {
+        viewer.innerHTML = `
+          <div class="flex-1 flex items-center justify-center flex-col text-gray-400 p-8 text-center bg-gray-50">
+            <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <i class="ph-fill ph-books text-4xl text-gray-300"></i>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-600 mb-2">歡迎使用 QwenLM</h3>
+            <p class="max-w-md text-sm">這是一個類似於 NotebookLM 的智能學習工具。請先在左側欄位新增您的文件資料，然後即可在右側與它們進行對話研討。</p>
+          </div>
+        `;
+      }
+    }
+
+    function renderMessages() {
+      const chatContainer = document.getElementById('chatHistory');
+      const emptyState = document.getElementById('emptyChatState');
+      
+      if (messages.length === 0) {
+        if(emptyState) emptyState.style.display = 'block';
+        chatContainer.innerHTML = emptyState ? emptyState.outerHTML : '';
+        return;
+      }
+
+      chatContainer.innerHTML = messages.map((msg, idx) => {
+        const isMsgSpeaking = (isSpeaking && speakingId === `msg-${idx}`);
+        // 簡單 Markdown 解析 (加粗)
+        let formattedContent = escapeHtml(msg.content)
+            .replace(/\n/g, '<br/>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>');
+
+        if (msg.role === 'user') {
+          return `
+            <div class="flex flex-col items-end mb-6">
+              <div class="max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed shadow-sm bg-indigo-600 text-white rounded-tr-sm">
+                ${formattedContent}
+              </div>
+            </div>`;
+        } else {
+          return `
+            <div class="flex flex-col items-start mb-6">
+              <div class="max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed shadow-sm bg-white border border-gray-100 text-gray-800 rounded-tl-sm">
+                ${formattedContent}
+              </div>
+              <button onclick="handleSpeak('msg-${idx}', ${escapeHtmlAttr(msg.content)})" class="mt-1.5 flex items-center space-x-1 text-xs font-medium px-2 py-1 rounded transition-colors ${isMsgSpeaking ? 'text-red-500 hover:bg-red-50' : 'text-gray-400 hover:text-indigo-500 hover:bg-indigo-50'}">
+                <i class="ph-fill ${isMsgSpeaking ? 'ph-square' : 'ph-speaker-high'}"></i>
+                <span>${isMsgSpeaking ? '停止' : '朗讀'}</span>
+              </button>
+            </div>`;
+        }
+      }).join('');
+
+      if (isLoading) {
+        chatContainer.innerHTML += `
+          <div class="flex items-start mb-6" id="loadingIndicator">
+            <div class="bg-white border border-gray-100 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center space-x-2">
+              <i class="ph ph-spinner-gap animate-spin text-indigo-500"></i>
+              <span class="text-sm text-gray-500">Qwen 正在思考...</span>
+            </div>
+          </div>`;
+      }
+
+      // 滾動到底部
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function updateInputState() {
+      const input = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('sendButton');
+      const micBtn = document.getElementById('micButton');
+      const hasSource = sources.length > 0;
+      
+      input.disabled = !hasSource || isLoading || isRecording;
+      input.placeholder = isRecording ? "聆聽中，請說話..." : (hasSource ? "基於文件提問..." : "請先新增文件...");
+      
+      micBtn.disabled = !hasSource || isLoading;
+      
+      input.oninput = () => {
+        sendBtn.disabled = !input.value.trim() || isLoading || !hasSource;
+      };
+      
+      // 確保重置時按鈕狀態正確
+      if(!input.value.trim() || isLoading || !hasSource) {
+        sendBtn.disabled = true;
+      }
+    }
+
+    // --- 互動與邏輯 ---
+    function toggleSettings(show) {
+      document.getElementById('settingsModal').style.display = show ? 'flex' : 'none';
+      if (show) document.getElementById('apiKeyInput').value = apiKey;
+    }
+
+    function saveApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      apiKey = key;
+      localStorage.setItem('qwen_api_key', key);
+      toggleSettings(false);
+    }
+
+    function toggleAddSource(show) {
+      document.getElementById('addSourceModal').style.display = show ? 'flex' : 'none';
+      if (show) {
+        document.getElementById('sourceTitle').value = '';
+        document.getElementById('sourceContent').value = '';
+        document.getElementById('fileInput').value = '';
+      }
+    }
+
+    function saveSource() {
+      const title = document.getElementById('sourceTitle').value.trim();
+      const content = document.getElementById('sourceContent').value.trim();
+      
+      if (!content) { alert("內容不能為空"); return; }
+
+      const newSource = {
+        id: Date.now().toString(),
+        title: title || `未命名文件 ${sources.length + 1}`,
+        content: content
+      };
+      
+      sources.push(newSource);
+      activeSourceId = newSource.id;
+      toggleAddSource(false);
+      renderApp();
+    }
+
+    function setActiveSource(id) {
+      activeSourceId = id;
+      renderApp();
+    }
+
+    function deleteSource(id) {
+      sources = sources.filter(s => s.id !== id);
+      if (activeSourceId === id) {
+        activeSourceId = sources.length > 0 ? sources[0].id : null;
+      }
+      renderApp();
+    }
+
+    function sendQuickCommand(type, title) {
+      let prompt = "";
+      let displayMsg = "";
+      if (type === '摘要') {
+        prompt = `請幫我生成文件《${title}》的詳細摘要，包含核心觀點和關鍵結論。`;
+        displayMsg = `[快捷指令] 生成《${title}》的摘要`;
+      } else {
+        prompt = `請根據文件《${title}》的內容，為我生成一份包含5個問題的學習測試指南，並附帶答案解析。`;
+        displayMsg = `[快捷指令] 生成學習測試指南`;
+      }
+      
+      messages.push({ role: 'user', content: displayMsg });
+      handleAPIRequest(prompt);
+    }
+
+    async function handleChatSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text || !apiKey) return;
+
+      input.value = '';
+      messages.push({ role: 'user', content: text });
+      await handleAPIRequest(text);
+    }
+
+    async function handleAPIRequest(userText) {
+      if (!apiKey) {
+        alert("請先在左上角設置 API Key");
+        return;
+      }
+
+      isLoading = true;
+      renderApp(); // 觸發 Loading UI
+
+      let systemPrompt = "你是一個強大的學習助手，類似於 NotebookLM。你的任務是根據用戶提供的【參考資料】來回答問題。如果參考資料中沒有相關信息，請明確告知用戶。請使用清晰、結構化的語言回答（可以使用Markdown），並優先使用繁體中文。\n\n";
+      
+      if (sources.length > 0) {
+        systemPrompt += "【參考資料】\n";
+        sources.forEach((source, index) => {
+          systemPrompt += `\n--- 文件 ${index + 1}: ${source.title} ---\n${source.content}\n`;
+        });
+      } else {
+        systemPrompt += "【注意】用戶當前沒有提供任何參考資料。請作為一個通用助手回答。";
+      }
+
+      const apiMessages = [
+        { role: 'system', content: systemPrompt },
+        ...messages.map(m => ({ role: m.role, content: m.content.startsWith('[快捷指令]') ? m.content.substring(6) : m.content })),
+      ];
+      // 如果是用戶輸入的文字 (而不是直接推入 messages 的 displayMsg)，確保它在最後
+      if(userText && apiMessages[apiMessages.length-1].content !== userText) {
+         apiMessages[apiMessages.length-1].content = userText; 
+      }
+
+      try {
+        const response = await fetch(QWEN_API_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: DEFAULT_MODEL,
+            messages: apiMessages,
+            temperature: 0.7,
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error?.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const aiReply = data.choices[0].message.content;
+
+        messages.push({ role: 'assistant', content: aiReply });
+      } catch (error) {
+        console.error("API 請求失敗:", error);
+        
+        // 針對阿里雲內容審查攔截 (inappropriate content) 進行友好提示
+        let displayError = error.message;
+        if (displayError.includes('inappropriate content') || displayError.includes('DataInspectionFailed')) {
+          displayError = "基於安全與內容審查機制，您的提問或文件可能包含敏感內容，已被系統攔截。請嘗試修改提問或內容後再試。";
+        } else {
+          displayError = `${displayError}\n請檢查您的 API 密鑰或網絡連接。`;
+        }
+
+        messages.push({ 
+          role: 'assistant', 
+          content: `**請求失敗**: ${displayError}` 
+        });
+      } finally {
+        isLoading = false;
+        renderApp();
+      }
+    }
+
+    // --- 檔案解析邏輯 ---
+    async function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      
+      const uploadLabel = document.getElementById('uploadLabel');
+      const uploadText = document.getElementById('uploadText');
+      const uploadIcon = document.getElementById('uploadIcon');
+      const fileInput = document.getElementById('fileInput');
+
+      uploadText.innerText = "正在解析文字 (視檔案大小可能需要數十秒)...";
+      uploadIcon.className = "ph ph-spinner-gap animate-spin text-indigo-500 mr-2 text-lg";
+      fileInput.disabled = true;
+
+      try {
+        if (['txt', 'md', 'csv', 'json'].includes(ext)) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            document.getElementById('sourceTitle').value = file.name;
+            document.getElementById('sourceContent').value = event.target.result;
+            resetUploadUI();
+          };
+          reader.readAsText(file);
+        } else if (ext === 'pdf') {
+          if (!window.pdfjsLib) {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += `--- 第 ${i} 頁 ---\n${pageText}\n\n`;
+          }
+          document.getElementById('sourceTitle').value = file.name;
+          document.getElementById('sourceContent').value = fullText;
+          resetUploadUI();
+        } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
+          if (!window.Tesseract) {
+            await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+          }
+          const worker = await window.Tesseract.createWorker('chi_tra+eng');
+          const ret = await worker.recognize(file);
+          document.getElementById('sourceTitle').value = file.name;
+          document.getElementById('sourceContent').value = ret.data.text;
+          await worker.terminate();
+          resetUploadUI();
+        } else {
+          alert("純前端版本目前支援 TXT, MD, PDF 以及 JPG/PNG 圖片辨識。\n\nPPT 或 Word 請先「另存為 PDF」後再上傳！");
+          resetUploadUI();
+        }
+      } catch (error) {
+        console.error(error);
+        alert("解析檔案失敗：" + error.message);
+        resetUploadUI();
+      }
+    }
+
+    function resetUploadUI() {
+      document.getElementById('uploadText').innerText = "選擇檔案上傳解析";
+      document.getElementById('uploadIcon').className = "ph ph-upload-simple text-gray-500 mr-2 text-lg";
+      document.getElementById('fileInput').disabled = false;
+      document.getElementById('fileInput').value = '';
+    }
+
+    // --- 語音朗讀 (TTS) ---
+    function handleSpeak(id, text) {
+      if (!('speechSynthesis' in window)) {
+        alert('您的瀏覽器不支援語音合成功能。');
+        return;
+      }
+
+      // 停止目前播放
+      if (isSpeaking && speakingId === id) {
+        window.speechSynthesis.cancel();
+        isSpeaking = false;
+        speakingId = null;
+        speechChunks = [];
+        renderApp();
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      speechChunks = [];
+
+      // 增強文本清理：移除頁數、特殊符號
+      let cleanText = text.replace(/---\s*第\s*\d+\s*頁\s*---/g, ' '); 
+      cleanText = cleanText.replace(/[*#`_~\[\]=【】]/g, ''); 
+      cleanText = cleanText.replace(/[-]{2,}/g, ''); 
+
+      // 【核心修復】手動將長文章按照句號、問號等拆分成短句
+      // 這不僅能解決瀏覽器長文本會卡死/中斷的 Bug，還能產生像人類一樣自然的「呼吸停頓」，更有感情
+      let chunks = [];
+      let currentSentence = "";
+      for (let i = 0; i < cleanText.length; i++) {
+        currentSentence += cleanText[i];
+        if (['。', '！', '？', '.', '!', '?', '\n'].includes(cleanText[i])) {
+          if (currentSentence.trim().length > 0) {
+            chunks.push(currentSentence.trim());
+          }
+          currentSentence = "";
+        }
+      }
+      if (currentSentence.trim().length > 0) {
+        chunks.push(currentSentence.trim());
+      }
+      
+      speechChunks = chunks;
+      currentChunkIndex = 0;
+      
+      if (speechChunks.length > 0) {
+        isSpeaking = true;
+        speakingId = id;
+        renderApp();
+        speakNextChunk();
+      }
+    }
+
+    // 播放列隊中的下一個短句
+    function speakNextChunk() {
+      if (currentChunkIndex >= speechChunks.length) {
+        // 播放完畢
+        isSpeaking = false;
+        speakingId = null;
+        currentUtterance = null;
+        renderApp();
+        return;
+      }
+
+      // 改用全域變數 currentUtterance
+      currentUtterance = new SpeechSynthesisUtterance(speechChunks[currentChunkIndex]);
+      currentUtterance.lang = 'zh-HK'; 
+      
+      // 【增加感情】微調語速與音高，避免像趕火車的機器人
+      currentUtterance.rate = 0.95;  // 語速稍微放慢一點點
+      currentUtterance.pitch = 1.05; // 音高稍微提升一點點，聽起來較有精神
+      
+      currentUtterance.onend = () => {
+        currentChunkIndex++;
+        speakNextChunk(); // 遞迴播放下一句
+      };
+      
+      currentUtterance.onerror = (e) => {
+        // 忽略人為取消 (canceled) 與被其他語音中斷 (interrupted) 的錯誤
+        if (e.error !== 'canceled' && e.error !== 'interrupted') {
+          console.error('語音播放錯誤:', e.error || 'Unknown Error');
+          isSpeaking = false;
+          speakingId = null;
+          currentUtterance = null;
+          renderApp();
+        }
+      };
+
+      window.speechSynthesis.speak(currentUtterance);
+    }
+
+    // --- 語音輸入 (STT) ---
+    function initSpeechRecognition() {
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        speechRecognition = new SpeechRecognition();
+        speechRecognition.continuous = false; // 單次辨識
+        speechRecognition.interimResults = false;
+        speechRecognition.lang = 'zh-HK'; // 廣東話
+
+        speechRecognition.onstart = function() {
+          isRecording = true;
+          const micBtn = document.getElementById('micButton');
+          micBtn.classList.add('recording-pulse');
+          updateInputState();
+        };
+
+        speechRecognition.onresult = function(event) {
+          const transcript = event.results[0][0].transcript;
+          const input = document.getElementById('chatInput');
+          input.value = transcript;
+          
+          // 語音識別完成後自動發送
+          messages.push({ role: 'user', content: transcript });
+          handleAPIRequest(transcript);
+        };
+
+        speechRecognition.onerror = function(event) {
+          console.error("語音識別錯誤", event.error);
+          isRecording = false;
+          stopRecordingUI();
+          // 忽略 no-speech 和 aborted，避免報錯彈出
+          if(event.error !== 'aborted' && event.error !== 'no-speech') {
+             alert("語音識別失敗: " + event.error);
+          }
+        };
+
+        speechRecognition.onend = function() {
+          isRecording = false;
+          stopRecordingUI();
+        };
+      } else {
+        console.warn("此瀏覽器不支援 Web Speech API 語音識別");
+      }
+    }
+
+    function toggleVoiceRecording() {
+      if (!speechRecognition) {
+        alert("您的瀏覽器不支援語音辨識功能 (請使用 Chrome 或 Edge)。");
+        return;
+      }
+
+      if (isRecording) {
+        try { speechRecognition.stop(); } catch(e) {}
+        isRecording = false;
+        stopRecordingUI();
+      } else {
+        // 【核心邏輯】讀書中途用語音問問題：如果正在朗讀，先強制中斷朗讀！
+        if (isSpeaking || window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+          isSpeaking = false;
+          speakingId = null;
+          speechChunks = []; // 清空待播放列隊
+          renderApp(); 
+        }
+
+        try {
+          isRecording = true; // 樂觀鎖定：立刻將狀態設為 true，防止重複快速點擊導致 InvalidStateError
+          speechRecognition.start();
+        } catch(e) {
+          if (e.name === 'InvalidStateError') {
+            console.warn("語音識別已經在執行中，忽略重複啟動請求。");
+          } else {
+            console.error("語音啟動錯誤", e);
+            isRecording = false;
+          }
+        }
+      }
+    }
+
+    function stopRecordingUI() {
+      const micBtn = document.getElementById('micButton');
+      if(micBtn) micBtn.classList.remove('recording-pulse');
+      updateInputState();
+    }
+
+    // --- 工具函數：轉義 HTML 避免 XSS ---
+    function escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // 用於在 onclick 函數中傳遞字串參數
+    function escapeHtmlAttr(unsafe) {
+      if (!unsafe) return "''";
+      return "`" + unsafe.replace(/`/g, '\\`').replace(/\\/g, '\\\\') + "`";
+    }
+
+  </script>
+</body>
+</html>
