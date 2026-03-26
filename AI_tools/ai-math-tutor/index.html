@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 數學導師</title>
+  <!-- 載入 Tailwind CSS (排版樣式) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 載入 Babel (讓瀏覽器能讀懂 React JSX 語法) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 隱藏未編譯前的閃爍 */
+    body { margin: 0; padding: 0; font-family: sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div id="root"></div>
+
+  <!-- 應用程式邏輯 -->
+  <script type="text/babel" data-type="module">
+    // --- 1. 從 CDN 載入 React 與依賴套件 ---
+    import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0';
+    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+    import { 
+      BookOpen, BrainCircuit, BarChart2, Settings, 
+      ChevronRight, CheckCircle, XCircle, Award, 
+      AlertCircle, Loader2, PlayCircle, Clock, PartyPopper,
+      Users, UserPlus, Cloud, CloudOff, Info,
+      BookmarkX, Target, PenTool, Trash2
+    } from 'https://esm.sh/lucide-react@0.292.0?deps=react@18.2.0';
+
+    // --- 2. 從 CDN 載入 Firebase (使用 ES Module) ---
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+    import { getFirestore, doc, setDoc, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+    // --- 3. Firebase 初始化 (您的專屬設定) ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBmSOc6Xbnqhe9FVQS2SjFhWpXq75iSBX8",
+      authDomain: "ai-math-system-c239f.firebaseapp.com",
+      projectId: "ai-math-system-c239f",
+      storageBucket: "ai-math-system-c239f.firebasestorage.app",
+      messagingSenderId: "854186745107",
+      appId: "1:854186745107:web:64227aad20bcbba29d8ee6",
+      measurementId: "G-RX0ZQ3J3LW"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    let analytics;
+    if (typeof window !== 'undefined') analytics = getAnalytics(app);
+
+    const appId = 'ai-math-system-c239f'; 
+
+    // --- 4. 系統常數與工具函數 ---
+    const GRADES = ['小一', '小二', '小三', '小四', '小五', '小六', '中一', '中二', '中三', '中四', '中五', '中六'];
+
+    const formatMathText = (text) => {
+      if (typeof text !== 'string') return text;
+      return text
+        .replace(/\\times/g, ' × ')
+        .replace(/\\div/g, ' ÷ ')
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2')
+        .replace(/\\circ/g, '°')
+        .replace(/\\pi/g, 'π')
+        .replace(/\\leq/g, '≤')
+        .replace(/\\geq/g, '≥')
+        .replace(/\\neq/g, '≠')
+        .replace(/\\approx/g, '≈')
+        .replace(/\^2/g, '²')
+        .replace(/\^3/g, '³')
+        .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
+        .replace(/\$|\\\(|\\\)/g, '');
+    };
+
+    const extractJSON = (text) => {
+      try {
+        const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+        if (match) return JSON.parse(match[0]);
+        return JSON.parse(text);
+      } catch (error) {
+        throw new Error("AI 回應格式錯誤，請重試。");
+      }
+    };
+
+    const callQwenAPI = async (apiKey, systemPrompt, userPrompt) => {
+      const url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'qwen-plus',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ]
+        })
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || "API 請求失敗");
+      }
+      const data = await response.json();
+      return extractJSON(data.choices[0].message.content);
+    };
+
+    // --- 5. 主程式 ---
+    function App() {
+      const [user, setUser] = useState(null);
+      const [isDbReady, setIsDbReady] = useState(false);
+      
+      const [qwenApiKey, setQwenApiKey] = useState('');
+      const [globalApiKey, setGlobalApiKey] = useState('');
+      const [students, setStudents] = useState([]);
+      const [currentStudentId, setCurrentStudentId] = useState('');
+      
+      const [currentView, setCurrentView] = useState('home');
+      const [quizMode, setQuizMode] = useState('');
+      const [quizData, setQuizData] = useState(null);
+      const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+      const [userAnswers, setUserAnswers] = useState({});
+      const [isLoading, setIsLoading] = useState(false);
+      const [loadingText, setLoadingText] = useState('');
+      const [currentReport, setCurrentReport] = useState(null);
+      const [errorMsg, setErrorMsg] = useState('');
+
+      const activeStudent = students.find(s => s.id === currentStudentId) || students[0] || {
+        id: 'loading', name: '載入中...', grade: '小四', age: 9, abilityScore: 50, history: []
+      };
+      const history = activeStudent.history || [];
+
+      useEffect(() => {
+        const initAuth = async () => {
+          try {
+            await signInAnonymously(auth);
+          } catch (error) {
+            setErrorMsg("無法連接雲端伺服器: " + error.message);
+          }
+        };
+        initAuth();
+        const unsubscribe = onAuthStateChanged(auth, setUser);
+        return () => unsubscribe();
+      }, []);
+
+      useEffect(() => {
+        if (!user) return;
+
+        const configRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config');
+        const unsubConfig = onSnapshot(configRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.qwenApiKey) setQwenApiKey(data.qwenApiKey);
+            if (data.currentStudentId) setCurrentStudentId(data.currentStudentId);
+          }
+        }, (error) => console.error("Config 讀取失敗:", error));
+
+        const globalConfigRef = doc(db, 'artifacts', appId, 'public', 'data', 'systemConfig', 'keys');
+        const unsubGlobal = onSnapshot(globalConfigRef, (docSnap) => {
+          if (docSnap.exists() && docSnap.data().qwenApiKey) {
+            setGlobalApiKey(docSnap.data().qwenApiKey);
+          } else {
+            setGlobalApiKey('');
+          }
+        }, (error) => console.error("Global Config 讀取失敗:", error));
+
+        const studentsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'students');
+        const unsubStudents = onSnapshot(studentsRef, async (snapshot) => {
+          const loadedStudents = [];
+          snapshot.forEach(docSnap => loadedStudents.push({ id: docSnap.id, ...docSnap.data() }));
+          
+          if (loadedStudents.length === 0) {
+            const newId = 'student_' + Date.now();
+            const defaultStudent = { name: '學生 1', grade: '小四', age: 9, abilityScore: 50, hasInitialAssessment: false, history: [] };
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', newId), defaultStudent);
+            await setDoc(configRef, { currentStudentId: newId }, { merge: true });
+          } else {
+            loadedStudents.sort((a, b) => a.name.localeCompare(b.name));
+            setStudents(loadedStudents);
+            setIsDbReady(true);
+          }
+        }, (error) => console.error("Students 讀取失敗:", error));
+
+        return () => {
+          unsubConfig();
+          unsubGlobal();
+          unsubStudents();
+        };
+      }, [user]);
+
+      const updateConfig = async (updates) => {
+        if (!user) return;
+        try {
+          await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'config'), updates, { merge: true });
+        } catch (e) { setErrorMsg("設定儲存失敗"); }
+      };
+
+      const updateStudentInDb = async (studentId, updates) => {
+        if (!user) return;
+        try {
+          await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'students', studentId), updates, { merge: true });
+        } catch (e) { setErrorMsg("學生資料更新失敗"); }
+      };
+
+      const toggleOverride = async (detailIndex) => {
+        if (!currentReport) return;
+        const newDetails = [...currentReport.details];
+        newDetails[detailIndex].isCorrect = !newDetails[detailIndex].isCorrect;
+
+        const newCorrectCount = newDetails.filter(d => d.isCorrect).length;
+        const newScore = Math.round((newCorrectCount / currentReport.totalQuestions) * 100);
+
+        const updatedReport = {
+          ...currentReport,
+          details: newDetails,
+          correctCount: newCorrectCount,
+          score: newScore
+        };
+
+        setCurrentReport(updatedReport);
+        const updatedHistory = activeStudent.history.map(r => r.id === updatedReport.id ? updatedReport : r);
+        await updateStudentInDb(activeStudent.id, { history: updatedHistory });
+      };
+
+      const ErrorToast = () => {
+        if (!errorMsg) return null;
+        return (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-red-100 border-l-4 border-red-500 text-red-700 px-6 py-4 rounded shadow-lg flex items-center gap-3">
+            <AlertCircle size={20} />
+            <span className="font-medium">{errorMsg}</span>
+            <button onClick={() => setErrorMsg('')} className="ml-4 text-red-500 hover:text-red-700 font-bold">✕</button>
+          </div>
+        );
+      };
+
+      const generateQuestions = async (mode) => {
+        const activeApiKey = globalApiKey || qwenApiKey;
+        if (!activeApiKey) {
+          setErrorMsg("請先在「系統設定」中輸入 Qwen API Key");
+          setCurrentView('settings');
+          return;
+        }
+
+        setIsLoading(true);
+        setLoadingText('AI 正在根據香港教育局指引為您度身訂造數學題...');
+        setQuizMode(mode);
+
+        const systemPrompt = `你是一位專業的香港數學老師，嚴格遵照香港教育局(EDB)的數學課程指引。
+請使用香港慣用的數學名詞（如：立體圖形、分數、小數、代數式等），並以繁體中文(zh-HK)輸出。
+【重要格式警告】：數學符號請務必使用純文字 Unicode (例如 ×, ÷, a/b, °, ²)，絕對禁止使用 LaTeX 語法 (如 \\times, \\frac, ^\\circ)。
+你必須只回傳合法的 JSON 格式，不要包含任何 markdown 標記或其他文字。`;
+
+        const userPrompt = `
+請為一位${activeStudent.grade}（${activeStudent.age}歲）的學生生成 10 條數學選擇題。
+目前的學習能力指數為：${activeStudent.abilityScore}/100。
+模式：${mode === 'assessment' ? '能力檢測（包含容易、中等、困難題目以測量真實水平）' : '定期練習（根據目前能力指數出題，針對弱點進行強化）'}。
+
+請以嚴格的 JSON 格式回傳，格式如下：
+{
+  "questions": [
+    {
+      "id": 1,
+      "topic": "課題名稱",
+      "question": "題目內容",
+      "options": ["選項A", "選項B", "選項C", "選項D"],
+      "correctAnswer": "正確答案 (必須與選項完全一致)",
+      "explanation": "詳細的解題步驟與原理解釋"
+    }
+  ]
+}`;
+
+        try {
+          const data = await callQwenAPI(activeApiKey, systemPrompt, userPrompt);
+          if (data && data.questions && data.questions.length > 0) {
+            setQuizData(data.questions);
+            setUserAnswers({});
+            setCurrentQuestionIndex(0);
+            setCurrentView('quiz');
+          } else {
+            throw new Error("生成的題目格式不符");
+          }
+        } catch (error) {
+          setErrorMsg("生成題目時發生錯誤: " + error.message);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const submitQuiz = async () => {
+        setIsLoading(true);
+        setLoadingText('AI 正在批改試卷並生成雲端分析報告...');
+
+        const activeApiKey = globalApiKey || qwenApiKey;
+        let correctCount = 0;
+        const details = quizData.map((q, index) => {
+          const isCorrect = userAnswers[index] === q.correctAnswer;
+          if (isCorrect) correctCount++;
+          return {
+            topic: q.topic,
+            question: q.question,
+            studentAnswer: userAnswers[index] || '未作答',
+            correctAnswer: q.correctAnswer,
+            isCorrect: isCorrect
+          };
+        });
+        
+        const score = (correctCount / quizData.length) * 100;
+        const wrongAnswersContext = details.filter(d => !d.isCorrect).map(d => `課題：${d.topic} | 題目：${d.question}`).join('；');
+
+        const systemPrompt = `你是一位專業的香港數學評估專家。請根據學生的作答結果提供深入分析及更新能力指數。請嚴格輸出 JSON 格式，使用繁體中文。數學符號請使用純文本。`;
+        const userPrompt = `
+學生年級：${activeStudent.grade}
+原能力指數：${activeStudent.abilityScore}/100
+本次練習模式：${quizMode === 'assessment' ? '能力檢測' : '定期練習'}
+本次得分：${correctCount}/${quizData.length} (${score}分)
+答錯題目及課題：${wrongAnswersContext || '全對，無答錯題目'}
+
+請生成評估報告，並重新評估該學生的「最新能力指數」(1-100)。JSON格式：
+{
+  "evaluation": "整體表現評價 (約 50 字)",
+  "strengths": ["強項課題1"],
+  "weaknesses": ["需改善課題1"],
+  "suggestions": ["具體溫習建議1"],
+  "newAbilityScore": 數值 (1-100)
+}`;
+
+        try {
+          const reportData = await callQwenAPI(activeApiKey, systemPrompt, userPrompt);
+          
+          let finalAbilityScore = reportData.newAbilityScore;
+          let leveledUp = false;
+          let newGrade = activeStudent.grade;
+
+          if (finalAbilityScore >= 100) {
+            const currentIndex = GRADES.indexOf(activeStudent.grade);
+            if (currentIndex !== -1 && currentIndex < GRADES.length - 1) {
+              newGrade = GRADES[currentIndex + 1];
+              finalAbilityScore = 50; 
+              leveledUp = true;
+            } else {
+              finalAbilityScore = 100;
+            }
+          }
+
+          const reportId = Date.now().toString();
+
+          const fullReport = {
+            id: reportId,
+            date: new Date().toLocaleString('zh-HK'),
+            mode: quizMode,
+            score: score,
+            correctCount,
+            totalQuestions: quizData.length,
+            details: details,
+            analysis: { ...reportData, newAbilityScore: finalAbilityScore },
+            leveledUp: leveledUp,
+            oldGrade: activeStudent.grade,
+            newGrade: newGrade
+          };
+
+          await updateStudentInDb(activeStudent.id, {
+            grade: newGrade,
+            abilityScore: finalAbilityScore,
+            hasInitialAssessment: true,
+            history: [fullReport, ...(activeStudent.history || [])]
+          });
+
+          setCurrentReport(fullReport);
+          setCurrentView('report');
+
+        } catch (error) {
+          setErrorMsg("生成報告時發生錯誤: " + error.message);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const renderSidebar = () => (
+        <div className="w-64 bg-indigo-900 text-white min-h-screen p-6 flex flex-col shadow-xl hidden md:flex fixed top-0 left-0 h-full z-10">
+          <div className="flex items-center gap-3 mb-8">
+            <BrainCircuit size={32} className="text-indigo-300" />
+            <h1 className="text-xl font-bold tracking-wider">AI 數學導師</h1>
+          </div>
+
+          <div className="bg-indigo-800/50 rounded-lg p-3 mb-6 flex items-center justify-between">
+            <span className="text-xs text-indigo-300 font-medium">資料庫狀態</span>
+            {isDbReady ? (
+              <span className="flex items-center gap-1 text-xs text-green-400"><Cloud size={14}/> 已連線</span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs text-yellow-400"><CloudOff size={14}/> 同步中</span>
+            )}
+          </div>
+          
+          <nav className="flex-1 space-y-2">
+            {[
+              { id: 'home', icon: BookOpen, label: '學習主頁' },
+              { id: 'records', icon: BarChart2, label: '學生記錄' },
+              { id: 'mistakes', icon: BookmarkX, label: '能力分析與錯題' },
+              { id: 'settings', icon: Settings, label: '系統設定' }
+            ].map(item => (
+              <button
+                key={item.id}
+                onClick={() => setCurrentView(item.id)}
+                className={`flex items-center gap-3 w-full p-3 rounded-lg transition-colors ${
+                  currentView === item.id || (item.id === 'home' && (currentView === 'quiz' || currentView === 'report')) 
+                    ? 'bg-indigo-700 text-white font-medium' 
+                    : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+                }`}
+              >
+                <item.icon size={20} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="mt-auto pt-6 border-t border-indigo-700">
+            <div className="text-sm text-indigo-300 mb-1 flex items-center gap-2"><Users size={16}/> 當前學生</div>
+            {isDbReady ? (
+              <>
+                <div className="font-bold text-lg">{activeStudent.name}</div>
+                <div className="text-indigo-200 text-sm">{activeStudent.grade} • {activeStudent.age}歲</div>
+                <div className="mt-2 w-full bg-indigo-950 rounded-full h-2.5">
+                  <div className="bg-green-400 h-2.5 rounded-full transition-all duration-1000" style={{ width: `${activeStudent.abilityScore}%` }}></div>
+                </div>
+                <div className="text-xs text-indigo-400 mt-1 text-right">能力值: {activeStudent.abilityScore}</div>
+              </>
+            ) : (
+              <div className="text-indigo-200 text-sm animate-pulse mt-2">正在從雲端讀取...</div>
+            )}
+          </div>
+        </div>
+      );
+
+      const renderHome = () => (
+        <div className="max-w-4xl mx-auto space-y-8">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+            <h2 className="text-3xl font-bold text-slate-800 mb-2">早晨！準備好挑戰數學了嗎？</h2>
+            <p className="text-slate-500">系統會根據香港教育局指引及你的個人能力，自動從雲端為你挑選最適合的題目。</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Award size={100} /></div>
+              <h3 className="text-xl font-bold text-blue-900 mb-3 flex items-center gap-2">
+                <Award size={24} className="text-blue-600" /> 能力檢測
+              </h3>
+              <p className="text-blue-700/80 mb-6 min-h-[48px]">初次使用或想重新評估真實水平？進行全面檢測以重置能力基準。</p>
+              <button 
+                disabled={!isDbReady}
+                onClick={() => generateQuestions('assessment')}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white px-6 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"
+              >
+                <PlayCircle size={20} /> 開始檢測
+              </button>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-6 rounded-2xl border border-emerald-100 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Clock size={100} /></div>
+              <h3 className="text-xl font-bold text-emerald-900 mb-3 flex items-center gap-2">
+                <BookOpen size={24} className="text-emerald-600" /> 定期練習
+              </h3>
+              <p className="text-emerald-700/80 mb-6 min-h-[48px]">
+                {activeStudent.hasInitialAssessment 
+                  ? `基於你目前的能力指數 (${activeStudent.abilityScore}) 生成 10 條針對性題目。` 
+                  : '建議先完成「能力檢測」再進行針對性練習。'}
+              </p>
+              <button 
+                disabled={!isDbReady}
+                onClick={() => generateQuestions('practice')}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white px-6 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"
+              >
+                <PlayCircle size={20} /> 開始練習 (10題)
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+
+      const renderQuiz = () => {
+        if (!quizData) return null;
+        const currentQ = quizData[currentQuestionIndex];
+
+        return (
+          <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-indigo-50 p-6 border-b border-indigo-100 flex justify-between items-center">
+              <div>
+                <span className="text-indigo-600 font-medium text-sm px-3 py-1 bg-indigo-100 rounded-full">
+                  {quizMode === 'assessment' ? '能力檢測' : '定期練習'}
+                </span>
+                <span className="ml-3 text-slate-500 text-sm">課題：{currentQ.topic}</span>
+              </div>
+              <div className="text-slate-600 font-medium">
+                題目 {currentQuestionIndex + 1} / {quizData.length}
+              </div>
+            </div>
+            
+            <div className="p-8">
+              <h3 className="text-2xl font-bold text-slate-800 mb-8 leading-relaxed">
+                {formatMathText(currentQ.question)}
+              </h3>
+              
+              <div className="space-y-4">
+                {currentQ.options.map((option, idx) => (
+                  <label key={idx} className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${userAnswers[currentQuestionIndex] === option ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-slate-100 hover:border-indigo-200 hover:bg-slate-50'}`}>
+                    <input 
+                      type="radio" 
+                      name={`question-${currentQuestionIndex}`}
+                      value={option}
+                      checked={userAnswers[currentQuestionIndex] === option}
+                      onChange={() => setUserAnswers({...userAnswers, [currentQuestionIndex]: option})}
+                      className="hidden"
+                    />
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-4 ${userAnswers[currentQuestionIndex] === option ? 'border-indigo-600' : 'border-slate-300'}`}>
+                      {userAnswers[currentQuestionIndex] === option && <div className="w-3 h-3 bg-indigo-600 rounded-full"></div>}
+                    </div>
+                    <span className="text-lg text-slate-700">{formatMathText(option)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between">
+              <button onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))} disabled={currentQuestionIndex === 0} className="px-6 py-2 rounded-lg font-medium text-slate-600 disabled:opacity-50 hover:bg-slate-200 transition-colors">
+                上一題
+              </button>
+              
+              <button 
+                onClick={() => {
+                  setUserAnswers({...userAnswers, [currentQuestionIndex]: '已跳過'});
+                  if (currentQuestionIndex < quizData.length - 1) setCurrentQuestionIndex(currentQuestionIndex + 1);
+                }} 
+                className="px-6 py-2 rounded-lg font-medium text-orange-600 hover:bg-orange-50 border border-orange-200 transition-colors mx-2"
+              >
+                跳過本題
+              </button>
+
+              {currentQuestionIndex < quizData.length - 1 ? (
+                <button onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)} disabled={!userAnswers[currentQuestionIndex]} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium disabled:opacity-50 transition-colors flex items-center gap-2">
+                  下一題 <ChevronRight size={18} />
+                </button>
+              ) : (
+                <button onClick={submitQuiz} disabled={!userAnswers[currentQuestionIndex]} className="px-8 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium shadow-md transition-colors">
+                  提交試卷
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const renderReport = () => {
+        if (!currentReport) return null;
+        const { analysis, score, correctCount, totalQuestions, details, leveledUp, oldGrade, newGrade } = currentReport;
+
+        return (
+          <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500">
+            {leveledUp && (
+              <div className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 p-6 rounded-2xl shadow-lg text-white text-center transform hover:scale-[1.02] transition-transform">
+                <PartyPopper size={48} className="mx-auto mb-3 animate-bounce" />
+                <h2 className="text-3xl font-extrabold mb-2 text-white">太棒了！能力突破 100 分！</h2>
+                <p className="text-lg font-medium opacity-90">
+                  你已經完全掌握了 {oldGrade} 的數學知識。雲端資料庫已為你升級至 <span className="text-2xl font-black bg-white/20 px-3 py-1 rounded-lg">{newGrade}</span>！
+                </p>
+              </div>
+            )}
+
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center">
+              <h2 className="text-3xl font-bold text-slate-800 mb-2">練習完成！</h2>
+              <div className="flex items-center justify-center gap-6 mt-6">
+                <div className="text-center">
+                  <div className="text-5xl font-extrabold text-indigo-600">{score}<span className="text-2xl text-slate-500 font-medium">分</span></div>
+                  <div className="text-slate-500 mt-2">得分 ({correctCount}/{totalQuestions})</div>
+                </div>
+                <div className="w-px h-16 bg-slate-200"></div>
+                <div className="text-center">
+                  <div className="text-5xl font-extrabold text-emerald-600">{analysis.newAbilityScore}</div>
+                  <div className="text-slate-500 mt-2">最新能力指數</div>
+                </div>
+              </div>
+              <p className="mt-6 text-lg text-slate-700 bg-slate-50 p-4 rounded-xl inline-block">{analysis.evaluation}</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-green-50 p-6 rounded-2xl border border-green-100">
+                <h3 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2"><CheckCircle size={20}/> 你的強項</h3>
+                <ul className="space-y-2">{analysis.strengths.map((s, i) => <li key={i} className="text-green-700 flex items-start gap-2"><span className="text-green-500 mt-1">•</span>{s}</li>)}</ul>
+              </div>
+              <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
+                <h3 className="text-lg font-bold text-orange-800 mb-4 flex items-center gap-2"><AlertCircle size={20}/> 需改善領域</h3>
+                <ul className="space-y-2">{analysis.weaknesses.map((w, i) => <li key={i} className="text-orange-700 flex items-start gap-2"><span className="text-orange-500 mt-1">•</span>{w}</li>)}</ul>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+              <h3 className="text-lg font-bold text-blue-800 mb-4 flex items-center gap-2"><BrainCircuit size={20}/> 導師建議</h3>
+              <ul className="space-y-2">{analysis.suggestions.map((s, i) => <li key={i} className="text-blue-700 flex items-start gap-2"><span className="text-blue-500 mt-1">•</span>{s}</li>)}</ul>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-8">
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 font-bold text-slate-700">題目回顧及詳細解析</div>
+              <div className="divide-y divide-slate-100">
+                {details.map((d, i) => (
+                  <div key={i} className="p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="mt-1 flex flex-col items-center gap-2">
+                        {d.isCorrect ? <CheckCircle className="text-green-500" size={24}/> : <XCircle className="text-red-500" size={24}/>}
+                        <button onClick={() => toggleOverride(i)} title={d.isCorrect ? "標示為錯誤" : "系統誤判？強制改為正確"} className="text-slate-400 hover:text-indigo-600 transition-colors mt-1">
+                          <PenTool size={16}/>
+                        </button>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="font-medium text-slate-800">Q{i+1}. {formatMathText(d.question)}</p>
+                          {d.studentAnswer === '已跳過' && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold whitespace-nowrap ml-2">已跳過</span>}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <span className="text-slate-500 block mb-1">你的答案：</span>
+                            <span className={d.isCorrect ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>{formatMathText(d.studentAnswer)}</span>
+                          </div>
+                          <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                            <span className="text-green-700 block mb-1">正確答案：</span>
+                            <span className="text-green-800 font-medium">{formatMathText(d.correctAnswer)}</span>
+                          </div>
+                        </div>
+                        {!d.isCorrect && quizData[i]?.explanation && (
+                          <div className="bg-indigo-50 p-4 rounded-lg text-sm text-indigo-800 mt-3 border border-indigo-100">
+                            <span className="font-bold block mb-1">解題說明：</span>
+                            {formatMathText(quizData[i].explanation)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-center pt-6">
+              <button onClick={() => setCurrentView('home')} className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium shadow-md transition-colors">
+                返回主頁
+              </button>
+            </div>
+          </div>
+        );
+      };
+
+      const renderRecords = () => (
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800">學生記錄與能力評估</h2>
+              <p className="text-slate-500 mt-1">資料安全儲存於雲端，跨設備同步</p>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-slate-500">{activeStudent.name} 的能力指數</div>
+              <div className="text-3xl font-extrabold text-indigo-600">{activeStudent.abilityScore}</div>
+            </div>
+          </div>
+
+          {history.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-2xl border border-slate-100">
+              <BarChart2 size={48} className="mx-auto text-slate-300 mb-4" />
+              <p className="text-slate-500 text-lg">暫無練習記錄。完成一次練習後即可在此查看分析。</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {history.map((record, idx) => (
+                <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 transition-all hover:shadow-md">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className={`px-2 py-1 text-xs font-bold rounded flex items-center gap-1 ${record.mode === 'assessment' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {record.mode === 'assessment' ? '能力檢測' : '定期練習'}
+                        </span>
+                        <span className="text-slate-400 text-sm">{record.date}</span>
+                      </div>
+                      <div className="text-slate-700 font-medium">得分：{record.score} 分 ({record.correctCount}/{record.totalQuestions})</div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-slate-400 block">評估後能力值</span>
+                      <span className="text-xl font-bold text-indigo-600">{record.analysis.newAbilityScore}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    {record.analysis.evaluation}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+
+      const renderMistakes = () => {
+        const topicStats = {};
+        activeStudent.history.forEach(report => {
+          report.details.forEach(d => {
+            if(!topicStats[d.topic]) topicStats[d.topic] = { total: 0, correct: 0 };
+            topicStats[d.topic].total++;
+            if(d.isCorrect) topicStats[d.topic].correct++;
+          });
+        });
+
+        const radarData = Object.entries(topicStats)
+          .sort((a,b) => b[1].total - a[1].total)
+          .slice(0, 6)
+          .map(([topic, stat]) => ({
+              axis: topic,
+              value: stat.correct / stat.total,
+              label: `${Math.round((stat.correct/stat.total)*100)}%`
+          }));
+
+        const mistakes = [];
+        activeStudent.history.forEach(report => {
+            report.details.forEach((d, i) => {
+                if(!d.isCorrect && d.studentAnswer !== '已跳過' && !d.isResolved) {
+                    mistakes.push({ ...d, date: report.date, mode: report.mode, reportId: report.id, detailIndex: i });
+                }
+            });
+        });
+
+        const handleRemoveMistake = async (reportId, detailIndex) => {
+          if (!user) return;
+          const updatedHistory = activeStudent.history.map(r => {
+            if (r.id === reportId) {
+              const newDetails = [...r.details];
+              newDetails[detailIndex] = { ...newDetails[detailIndex], isResolved: true };
+              return { ...r, details: newDetails };
+            }
+            return r;
+          });
+          await updateStudentInDb(activeStudent.id, { history: updatedHistory });
+        };
+
+        const RadarChart = ({ data }) => {
+            if(data.length < 3) return <div className="text-slate-500 text-center py-10 bg-slate-50 rounded-xl border border-slate-100">完成更多不同課題的練習後，即可生成專屬能力雷達圖。</div>;
+            const size = 320, center = size / 2, radius = 100;
+            const getPoint = (val, i) => {
+                const angle = (Math.PI * 2 * i) / data.length - Math.PI / 2;
+                return { x: center + radius * val * Math.cos(angle), y: center + radius * val * Math.sin(angle) };
+            };
+            const pathData = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getPoint(d.value, i).x} ${getPoint(d.value, i).y}`).join(' ') + ' Z';
+
+            return (
+                <svg width="100%" height={size} viewBox={`0 0 ${size} ${size}`} className="mx-auto max-w-sm">
+                    {[0.2, 0.4, 0.6, 0.8, 1].map((val, idx) => (
+                        <polygon key={idx} points={data.map((_, i) => `${getPoint(val, i).x},${getPoint(val, i).y}`).join(' ')} fill="none" stroke="#e2e8f0" />
+                    ))}
+                    {data.map((_, i) => <line key={i} x1={center} y1={center} x2={getPoint(1, i).x} y2={getPoint(1, i).y} stroke="#e2e8f0" />)}
+                    <polygon points={pathData} fill="rgba(79, 70, 229, 0.2)" stroke="#4f46e5" strokeWidth="2" />
+                    {data.map((d, i) => <circle key={`c${i}`} cx={getPoint(d.value, i).x} cy={getPoint(d.value, i).y} r="4" fill="#4f46e5" />)}
+                    {data.map((d, i) => {
+                        const p = getPoint(1.25, i);
+                        return (
+                            <text key={`t${i}`} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="12" fill="#475569" className="font-bold">
+                                {d.axis} ({d.label})
+                            </text>
+                        );
+                    })}
+                </svg>
+            );
+        };
+
+        return (
+          <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Target className="text-indigo-600"/> 能力分析與雷達圖</h2>
+              <p className="text-slate-500 mt-1 mb-6">系統自動統計你過往的強弱項，命中率百分比一目了然。</p>
+              <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 flex justify-center">
+                <RadarChart data={radarData} />
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2 mb-6"><BookmarkX className="text-red-500"/> 歷史錯題集</h2>
+              {mistakes.length === 0 ? (
+                <div className="text-center py-10 bg-green-50 rounded-xl border border-green-100 text-green-700 font-medium">
+                  太棒了！目前沒有任何錯題紀錄。
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {mistakes.map((m, i) => (
+                    <div key={i} className="p-5 border border-slate-100 rounded-xl bg-slate-50 hover:border-indigo-200 transition-colors">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded">{m.topic}</span>
+                          <span className="text-xs text-slate-400">{m.date}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleRemoveMistake(m.reportId, m.detailIndex)} 
+                          className="text-slate-400 hover:text-red-500 transition-colors bg-white p-1.5 rounded-md border border-slate-200 shadow-sm"
+                          title="標示為已掌握並從錯題集移除"
+                        >
+                          <Trash2 size={16}/>
+                        </button>
+                      </div>
+                      <p className="font-medium text-slate-800 mb-3">{formatMathText(m.question)}</p>
+                      <div className="flex gap-4 text-sm">
+                        <div className="flex-1 bg-white p-2 rounded border border-slate-200">
+                          <span className="text-slate-400 text-xs block">你的答案</span>
+                          <span className="text-red-600 font-medium">{formatMathText(m.studentAnswer)}</span>
+                        </div>
+                        <div className="flex-1 bg-white p-2 rounded border border-green-200">
+                          <span className="text-green-600 text-xs block">正確答案</span>
+                          <span className="text-green-700 font-medium">{formatMathText(m.correctAnswer)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const renderSettings = () => {
+        const handleAddStudent = async () => {
+          if (!user) return;
+          const newId = 'student_' + Date.now();
+          const newStudent = { name: '新學生', grade: '小四', age: 9, abilityScore: 50, hasInitialAssessment: false, history: [] };
+          await updateStudentInDb(newId, newStudent);
+          await updateConfig({ currentStudentId: newId });
+        };
+
+        const handleSwitchStudent = async (id) => {
+          await updateConfig({ currentStudentId: id });
+        };
+
+        return (
+          <div className="max-w-2xl mx-auto space-y-8">
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <Settings className="text-indigo-600"/> 系統設定 (雲端同步)
+              </h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Qwen API Key (通義千問國際版)</label>
+                  {globalApiKey ? (
+                    <div className="w-full px-4 py-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 flex items-center gap-3">
+                      <CheckCircle size={20} className="text-emerald-500" />
+                      <div>
+                        <div className="font-bold">管理員已在雲端設定共用金鑰</div>
+                        <div className="text-xs opacity-80">學生無需手動輸入即可直接使用系統。</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <input 
+                        type="password"
+                        value={qwenApiKey}
+                        onChange={(e) => {
+                          setQwenApiKey(e.target.value);
+                          updateConfig({ qwenApiKey: e.target.value });
+                        }}
+                        placeholder="sk-xxxxxxxxxxxxxxxx"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                      <p className="text-xs flex items-center gap-1 text-slate-500 mt-2">
+                        <Info size={14}/> 尚未設定全域金鑰。您輸入的個人金鑰將加密同步至您的專屬雲端空間。
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div className="pt-6 border-t border-slate-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Users className="text-indigo-600" size={20}/> 雲端學生管理</h3>
+                    <button onClick={handleAddStudent} disabled={!isDbReady} className="text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition-colors disabled:opacity-50">
+                      <UserPlus size={16}/> 新增學生
+                    </button>
+                  </div>
+                  
+                  <div className="mb-6">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">切換當前學生</label>
+                    <select 
+                      value={currentStudentId}
+                      onChange={(e) => handleSwitchStudent(e.target.value)}
+                      disabled={!isDbReady}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 font-medium disabled:opacity-50"
+                    >
+                      {students.map(s => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.grade})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {isDbReady && (
+                    <div className="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4 relative">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">學生名稱</label>
+                        <input 
+                          type="text"
+                          value={activeStudent.name}
+                          onChange={(e) => updateStudentInDb(activeStudent.id, { name: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">年級</label>
+                          <select 
+                            value={activeStudent.grade}
+                            onChange={(e) => updateStudentInDb(activeStudent.id, { grade: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                          >
+                            <optgroup label="小學">
+                              <option value="小一">小一</option>
+                              <option value="小二">小二</option>
+                              <option value="小三">小三</option>
+                              <option value="小四">小四</option>
+                              <option value="小五">小五</option>
+                              <option value="小六">小六</option>
+                            </optgroup>
+                            <optgroup label="中學">
+                              <option value="中一">中一</option>
+                              <option value="中二">中二</option>
+                              <option value="中三">中三</option>
+                              <option value="中四">中四</option>
+                              <option value="中五">中五</option>
+                              <option value="中六">中六</option>
+                            </optgroup>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-slate-700 mb-2">年齡</label>
+                          <input 
+                            type="number"
+                            value={activeStudent.age}
+                            onChange={(e) => updateStudentInDb(activeStudent.id, { age: parseInt(e.target.value) || 0 })}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            min="6" max="20"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">手動調整能力指數 (1-100)</label>
+                        <input 
+                          type="number"
+                          value={activeStudent.abilityScore}
+                          onChange={(e) => updateStudentInDb(activeStudent.id, { abilityScore: parseInt(e.target.value) || 50 })}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                          min="1" max="100"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <button 
+                  onClick={() => {
+                    const activeApiKey = globalApiKey || qwenApiKey;
+                    if(!activeApiKey) setErrorMsg("請輸入 API Key 後再開始");
+                    else setCurrentView('home');
+                  }}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors mt-6"
+                >
+                  進入學習主頁
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div className="flex min-h-screen">
+          <ErrorToast />
+          {renderSidebar()}
+
+          <div className="md:hidden fixed top-0 w-full bg-indigo-900 text-white p-4 flex justify-between items-center z-40 shadow-md">
+            <div className="flex items-center gap-2 font-bold">
+              <BrainCircuit size={24} /> AI 數學導師
+            </div>
+            <div className="flex gap-4">
+              <button onClick={() => setCurrentView('home')}><BookOpen size={20}/></button>
+              <button onClick={() => setCurrentView('records')}><BarChart2 size={20}/></button>
+              <button onClick={() => setCurrentView('mistakes')}><BookmarkX size={20}/></button>
+              <button onClick={() => setCurrentView('settings')}><Settings size={20}/></button>
+            </div>
+          </div>
+
+          <main className="flex-1 p-6 md:p-10 pt-20 md:pt-10 h-screen overflow-y-auto relative md:ml-64">
+            {isLoading && (
+              <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center">
+                <Loader2 size={48} className="text-indigo-600 animate-spin mb-4" />
+                <p className="text-lg font-medium text-slate-700">{loadingText}</p>
+              </div>
+            )}
+
+            {currentView === 'home' && renderHome()}
+            {currentView === 'quiz' && renderQuiz()}
+            {currentView === 'report' && renderReport()}
+            {currentView === 'records' && renderRecords()}
+            {currentView === 'mistakes' && renderMistakes()}
+            {currentView === 'settings' && renderSettings()}
+          </main>
+        </div>
+      );
+    }
+
+    // --- 6. 啟動 React 應用程式 ---
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
